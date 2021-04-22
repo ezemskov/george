@@ -2,7 +2,8 @@ from smbus2 import SMBus
 import threading
 from time import sleep
 from enum import IntEnum
-#from ctypes import c_int16
+import logging            
+from sys import stdout
 
 class Protocol:
     class CmdId(IntEnum):
@@ -35,7 +36,7 @@ class Protocol:
 
     def ParseWheelResp(respBuf):
         if len(respBuf) != 4:
-            return tuple()
+            return None
         
         speedL = int.from_bytes(respBuf[0:2], byteorder='big', signed=True)
         speedR = int.from_bytes(respBuf[2:4], byteorder='big', signed=True)
@@ -43,7 +44,7 @@ class Protocol:
 
     def ParseUltrasonicResp(respBuf):
         if len(respBuf) != 2:
-            return 0
+            return None
         
         return int.from_bytes(respBuf[0:2], byteorder='big', signed=True)
 
@@ -58,6 +59,8 @@ class ChassisInterface:
 
         self.speed = 0.0
         self.steering = 0.0
+        self.wheelCallback = None
+        self.ultrasonicCallback = None
 
         thread = threading.Thread(target=self.__run)
         thread.start()
@@ -67,36 +70,63 @@ class ChassisInterface:
         #todo : set event to interrupt thread
         #thread.join();    
     
+    def setWheelCallback(self, callback):
+        self.wheelCallback = callback
+
+    def setUltrasonicCallback(self, callback):
+        self.ultrasonicCallback = callback
+
     def setSpeed(self, speed_) : 
         self.speed = speed_
 
     def setSteering(self, steering) : 
         self.steering = steering_
 
+    def __receiveWheelResponse(self, deviceId):
+        offs = Protocol.FormatOffset(Protocol.CmdId.WheelResp, deviceId)
+        respBytes = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, 4);
+        logging.debug('Received from offset {0}: [{1}]'.format(offs, respBytes.hex()))
+
+        respTuple = Protocol.ParseWheelResp(respBytes)
+        if (self.wheelCallback != None and respTuple != None) : 
+            self.wheelCallback(deviceId, respTuple)
+
+    def __receiveUltrasonicResponse(self, deviceId):
+        respBytes = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, 
+            Protocol.FormatOffset(UltrasonicQuery, devId), 2);
+        respInt = Protocol.ParseUltrasonicResp(resp)
+        if (self.ultrasonicCallback != None and respInt != None) : 
+            self.ultrasonicCallback(devId, respInt)
+
     def __run(self):
         while True:
             cmdBytes = Protocol.FormatWheelCmd(self.speed, self.steering)
+
+            logging.debug('Send command : [{0}]'.format(cmdBytes.hex()))
             self.bus.write_i2c_block_data(ChassisInterface.I2cSlaveAddr, 
                 Protocol.FormatOffset(Protocol.CmdId.WheelCmd, Protocol.DeviceId.FrontAxis), cmdBytes)
             self.bus.write_i2c_block_data(ChassisInterface.I2cSlaveAddr, 
                 Protocol.FormatOffset(Protocol.CmdId.WheelCmd, Protocol.DeviceId.RearAxis),  cmdBytes)
             
-            wheelRespFront = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, 
-                Protocol.FormatOffset(Protocol.CmdId.WheelResp, Protocol.DeviceId.FrontAxis), 4);
-            Protocol.ParseWheelResp(wheelRespFront)
-            #todo : callbacks
+            self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
+            self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
 
-            wheelRespRear = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, 
-                Protocol.FormatOffset(Protocol.CmdId.WheelResp, Protocol.DeviceId.RearAxis), 4);
-            Protocol.ParseWheelResp(wheelRespRear)
-
-            for devId in range(Ultrasonic1, Ultrasonic4):
-                resp = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, 
-                    Protocol.FormatOffset(UltrasonicQuery, devId), 2);
-                Protocol.ParseUltrasonicResp(resp)
-
+            for devId in range(Protocol.DeviceId.Ultrasonic1, Protocol.DeviceId.Ultrasonic4):
+                self.__receiveUltrasonicResponse(devId)
 
             time.sleep(ResendIntervalSec)
 
+def logWheelResp(deviceId, respTuple):
+    logging.debug('Received wheel response from id {0} : L {1} R {2}'.format(deviceId, respTuple[0], respTuple[1]))
+
+def logUltrasonicResp(deviceId, respVal):
+    logging.debug('Received ultrasonic response from id {0} : {1} '.format(deviceId, respVal))
+
 if __name__ == '__main__':
+    
+    logging.basicConfig(stream=stdout, level=logging.DEBUG)
     d = ChassisInterface()
+    d.setWheelCallback(logWheelResp)
+    d.setUltrasonicCallback(logUltrasonicResp)
+
+
