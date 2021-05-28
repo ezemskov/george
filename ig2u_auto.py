@@ -185,14 +185,60 @@ def connect():
         print('interrupted!')
 
 
+def handle_motion_command_gpio_pwm(motComand, speedCommand):
+    global pwm1
+    global pwm2
+
+    if pwm1 == None:
+        pwm1 = GPIO.PWM(22, 100)
+        pwm1.start(0)
+    if pwm2 == None:
+        pwm2 = GPIO.PWM(25, 100)
+        pwm2.start(0)
+        print('motors on!')
+
+    if motComand == "top":
+        GPIO.output(27, True)
+        GPIO.output(17, False)
+        GPIO.output(24, True)
+        GPIO.output(23, False)
+        pwm1.ChangeDutyCycle(speedCommand)
+        pwm2.ChangeDutyCycle(speedCommand)
+    if motComand == "left":
+        GPIO.output(27, True)
+        GPIO.output(17, False)
+        GPIO.output(24, False)
+        GPIO.output(23, True)
+        pwm1.ChangeDutyCycle(speedCommand)
+        pwm2.ChangeDutyCycle(speedCommand)
+    if motComand == "right":
+        GPIO.output(27, False)
+        GPIO.output(17, True)
+        GPIO.output(24, True)
+        GPIO.output(23, False)
+        pwm1.ChangeDutyCycle(speedCommand)
+        pwm2.ChangeDutyCycle(speedCommand)
+    if motComand == "down":
+        GPIO.output(27, False)
+        GPIO.output(17, True)
+        GPIO.output(24, False)
+        GPIO.output(23, True)
+        pwm1.ChangeDutyCycle(speedCommand)
+        pwm2.ChangeDutyCycle(speedCommand)
+    if motComand == "stop":
+        GPIO.output(27, False)
+        GPIO.output(17, False)
+        GPIO.output(24, False)
+        GPIO.output(23, False)
+        pwm1.ChangeDutyCycle(0)
+        pwm2.ChangeDutyCycle(0)
+
 #ОБРАБОТКА управляющих сообщений от сервера (запускается после получения сообщения от сервера)
 @sio.on('my_responseIO', namespace='/test')
 def test_broadcast_message(data):
     print('message received with ', data)
     global last_response
     global dit
-    global pwm1
-    global pwm2
 
     global video
     last_response = datetime.datetime.utcnow()
@@ -264,52 +310,9 @@ def test_broadcast_message(data):
     if mode == "mot":
      try:
       if inRasbery:
-
-       if pwm1 == None:
-         pwm1 = GPIO.PWM(22, 100)
-         pwm1.start(0)
-       if pwm2 == None:
-         pwm2 = GPIO.PWM(25, 100)
-         pwm2.start(0)
-         print('motors on!')
-
        motComand = params[1]
        speedCommand = int(params[2])
-       if motComand == "top":
-            GPIO.output(27, True)
-            GPIO.output(17, False)
-            GPIO.output(24, True)
-            GPIO.output(23, False)
-            pwm1.ChangeDutyCycle(speedCommand)
-            pwm2.ChangeDutyCycle(speedCommand)
-       if motComand == "left":
-            GPIO.output(27, True)
-            GPIO.output(17, False)
-            GPIO.output(24, False)
-            GPIO.output(23, True)
-            pwm1.ChangeDutyCycle(speedCommand)
-            pwm2.ChangeDutyCycle(speedCommand)
-       if motComand == "right":
-            GPIO.output(27, False)
-            GPIO.output(17, True)
-            GPIO.output(24, True)
-            GPIO.output(23, False)
-            pwm1.ChangeDutyCycle(speedCommand)
-            pwm2.ChangeDutyCycle(speedCommand)
-       if motComand == "down":
-            GPIO.output(27, False)
-            GPIO.output(17, True)
-            GPIO.output(24, False)
-            GPIO.output(23, True)
-            pwm1.ChangeDutyCycle(speedCommand)
-            pwm2.ChangeDutyCycle(speedCommand)
-       if motComand == "stop":
-            GPIO.output(27, False)
-            GPIO.output(17, False)
-            GPIO.output(24, False)
-            GPIO.output(23, False)
-            pwm1.ChangeDutyCycle(0)
-            pwm2.ChangeDutyCycle(0)
+       handle_motion_command_gpio_pwm(motComand, speedCommand)
        
      except Exception as e:
       pass
