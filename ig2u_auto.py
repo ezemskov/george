@@ -15,18 +15,10 @@ from subprocess import Popen, PIPE, STDOUT
 import select
 import signal
 import psutil
-#import gi 
-#import l293d
 import RPi.GPIO as GPIO
 import board
-import busio
-i2c = busio.I2C(board.SCL, board.SDA)
-import adafruit_ads1x15.ads1115 as ADS
-from adafruit_ads1x15.analog_in import AnalogIn
 
 dit=None
-#motor1 = None
-#motor2 = None
 pwm1 = None
 pwm2 = None
 ads = None
@@ -43,7 +35,6 @@ start_time = time.time()
 connected = False
 last_response = None
 ms = 0
-volt = 0
 video = None
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(22, GPIO.OUT)
@@ -158,20 +149,15 @@ def map_range(a,b,s):
 @sio.event(namespace='/test') #действия при запуске
 def connect():
     global dit
-    #global motor1
-    #global motor2
     global pwm1
     global pwm2
     global ads
-    global volt
     global connected
 #    global start_time
     global ms
     last_response = datetime.datetime.utcnow()
     connected = True
     dit=pigpio.pi() #создаем объект для работы с моторами
-    #motor1 = l293d.DC(22, 18, 16)
-    #motor2 = l293d.DC(15, 13, 11)
     if pwm1 == None:
          pwm1 = GPIO.PWM(22, 100)
          pwm1.start(0)
@@ -179,17 +165,11 @@ def connect():
          pwm2 = GPIO.PWM(25, 100)
          pwm2.start(0)
          print('motors on!')
-    if ads == None:
-        ads = ADS.ADS1115(i2c)
-        chan = AnalogIn(ads, ADS.P0)
-        print(chan.value, chan.voltage)
-#    ping_pongStart()
     print('connection established')
     try:
         while connected:   #проверяем были ли отправлены команды с клиента в течении 10 секунд, если нет - глушим момторы
             sio.sleep(1)
             ping_pongR(ms)
-            ping_pongV(volt)
             delta =  datetime.datetime.utcnow() - last_response
 #            print("last active is : " + str(last_response))
             if delta > datetime.timedelta(seconds=10) and dit!=None:
@@ -211,8 +191,6 @@ def test_broadcast_message(data):
     print('message received with ', data)
     global last_response
     global dit
-    #global motor1
-    #global motor2
     global pwm1
     global pwm2
 
@@ -287,12 +265,6 @@ def test_broadcast_message(data):
      try:
       if inRasbery:
 
-       #if motor1 == None:
-       #  motor1 = l293d.DC(22, 18, 16) #создаем объект для работы с моторами
-       #if motor2 == None:
-       #  motor2 = l293d.DC(15, 13, 11)
-       #  print('motors on!')
-
        if pwm1 == None:
          pwm1 = GPIO.PWM(22, 100)
          pwm1.start(0)
@@ -310,8 +282,6 @@ def test_broadcast_message(data):
             GPIO.output(23, False)
             pwm1.ChangeDutyCycle(speedCommand)
             pwm2.ChangeDutyCycle(speedCommand)
-            #motor1.clockwise(speed=speedCommand)
-            #motor2.clockwise(speed=speedCommand)
        if motComand == "left":
             GPIO.output(27, True)
             GPIO.output(17, False)
@@ -319,8 +289,6 @@ def test_broadcast_message(data):
             GPIO.output(23, True)
             pwm1.ChangeDutyCycle(speedCommand)
             pwm2.ChangeDutyCycle(speedCommand)
-            #motor1.anticlockwise(speed=speedCommand)
-            #motor2.clockwise(speed=speedCommand)
        if motComand == "right":
             GPIO.output(27, False)
             GPIO.output(17, True)
@@ -328,8 +296,6 @@ def test_broadcast_message(data):
             GPIO.output(23, False)
             pwm1.ChangeDutyCycle(speedCommand)
             pwm2.ChangeDutyCycle(speedCommand)
-            #motor1.clockwise(speed=speedCommand)
-            #motor2.anticlockwise(speed=speedCommand)
        if motComand == "down":
             GPIO.output(27, False)
             GPIO.output(17, True)
@@ -337,8 +303,6 @@ def test_broadcast_message(data):
             GPIO.output(23, True)
             pwm1.ChangeDutyCycle(speedCommand)
             pwm2.ChangeDutyCycle(speedCommand)
-            #motor1.anticlockwise(speed=speedCommand)
-            #motor2.anticlockwise(speed=speedCommand)
        if motComand == "stop":
             GPIO.output(27, False)
             GPIO.output(17, False)
@@ -346,8 +310,6 @@ def test_broadcast_message(data):
             GPIO.output(23, False)
             pwm1.ChangeDutyCycle(0)
             pwm2.ChangeDutyCycle(0)
-            #motor1.stop()
-            #motor2.stop()
        
      except Exception as e:
       pass
@@ -401,26 +363,8 @@ def ping_pongR(data):
     start_time = datetime.datetime.utcnow()
     sio.emit('my_pingR', {u'data': data}, namespace='/test')
 
-#ответ на событие my_pongV с сервера - расчет уровня заряда аккумулятора
-@sio.on('my_pongV', namespace='/test')
-def latency(data):
-    global ads
-    global volt
-    if ads != None:
-        chan = AnalogIn(ads, ADS.P0)
-        voltage = chan.voltage
-    else:
-        ads = ADS.ADS1115(i2c)
-        chan = AnalogIn(ads, ADS.P0)
-        voltage = chan.voltage
-#    volt = round(voltage * 252.5 - 600)
-    volt = voltage
-#    print(volt)
-    return volt
-
 #передача данных на сервер
 def ping_pongV(data):
-    global volt
     sio.emit('my_pingV', {u'data': data}, namespace='/test')
 
 while True:
