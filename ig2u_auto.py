@@ -378,14 +378,13 @@ def ping_pongR(data):
 def ping_pongV(data):
     sio.emit('my_pingV', {u'data': data}, namespace='/test')
 
-'''
-while True:
-    try:
-        sio.connect('https://evgenium.fvds.ru:5000') #адрес для коннекта
-        sio.wait()
-    except Exception as e:
-        print(e)
-'''
+def main_remote():
+    while True:
+        try:
+            sio.connect('https://evgenium.fvds.ru:5000') #адрес для коннекта
+            sio.wait()
+        except Exception as e:
+            print(e)
 
 def handle_keypress(key):
     global g_speed_command
@@ -414,7 +413,7 @@ def handle_keypress(key):
 
     handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
 
-def main(win):
+def main_console(win):
     print("Motion console control\r\n Arrow keys : direction\r\n '-'/'+' : speed\r\nspace : stop\r\n 'q' exit\r\n")
     win.timeout(10) #msec
 
@@ -428,4 +427,5 @@ def main(win):
         except Exception as e:
            print ("curses exception '" + str(e) + "'\r\n")
 
-curses.wrapper(main)
+#curses.wrapper(main_console)
+main_remote()
