@@ -44,6 +44,8 @@ GPIO.setup(17, GPIO.OUT)
 GPIO.setup(25, GPIO.OUT)
 GPIO.setup(24, GPIO.OUT)
 GPIO.setup(23, GPIO.OUT)
+g_speed_command = 0
+g_mot_command = "stop"
 
 #убиваем процесс по имени (вызов из stop_video)
 def kill_name():
@@ -386,6 +388,8 @@ while True:
 '''
 
 def handle_keypress(key):
+    global g_speed_command
+    global g_mot_command
 
     CmdDic = {
         curses.KEY_UP : "top",
@@ -395,15 +399,25 @@ def handle_keypress(key):
         ord(' ') : "stop"
     }
 
+    SpeedDic = {
+        ord('+') : lambda cmdVal : min(cmdVal  + 10, 100),
+        ord('-') : lambda cmdVal : max(cmdVal  - 10, 0) 
+    }
+
+    speedFunc = SpeedDic.get(key)
+    if speedFunc != None:
+        g_speed_command = speedFunc(g_speed_command)
+
     motCmd = CmdDic.get(key)
     if motCmd != None:
-        handle_motion_command_gpio_pwm(motCmd, 50)
-    return True
+        g_mot_command = motCmd
+
+    handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
 
 def main(win):
+    print("Motion console control\r\n Arrow keys : direction\r\n '-'/'+' : speed\r\nspace : stop\r\n 'q' exit\r\n")
     win.timeout(10) #msec
 
-    print("Motion console control : arrow keys to move, space to stop, 'q' to quit\r\n")
     while True:          
         try:                 
            key = win.getch()         
