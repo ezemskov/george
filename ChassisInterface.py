@@ -35,7 +35,7 @@ class Protocol:
         return speedBuf + steeringBuf
 
     def ParseWheelResp(respBuf):
-        if len(respBuf) != 4:
+        if len(respBuf) < 4:
             return None
         
         speedL = int.from_bytes(respBuf[0:2], byteorder='big', signed=True)
@@ -43,11 +43,16 @@ class Protocol:
         return (speedL, speedR)
 
     def ParseUltrasonicResp(respBuf):
-        if len(respBuf) != 2:
+        if len(respBuf) < 2:
             return None
         
         return int.from_bytes(respBuf[0:2], byteorder='big', signed=True)
 
+class SMBusStub:
+    def write_i2c_block_data(self, address, offset, data):
+        pass
+    def read_i2c_block_data(self, address, offset, dataSize):
+        return b'\xAB\xCD\xEF\x12'
 
 class ChassisInterface:
     LogFilename="chassis_interface.log"
@@ -58,12 +63,13 @@ class ChassisInterface:
     def __init__(self, busNum = DefaultBusNum):
 
         loggerHandlers = [
-            logging.StreamHandler(stream=stdout),
+            #logging.StreamHandler(stream=stdout),
             logging.FileHandler(filename=ChassisInterface.LogFilename)
         ] 
         logging.basicConfig(handlers=loggerHandlers, level=logging.DEBUG)
 
-        self.bus = SMBus(busNum)     #todo : with ?
+        self.bus = SMBus(busNum)
+        #self.bus = SMBusStub()
 
         self.speed = 0.0
         self.steering = 0.0
