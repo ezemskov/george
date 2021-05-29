@@ -1,3 +1,4 @@
+import curses
 import os
 import socketio
 import datetime
@@ -189,49 +190,54 @@ def handle_motion_command_gpio_pwm(motComand, speedCommand):
     global pwm1
     global pwm2
 
-    if pwm1 == None:
-        pwm1 = GPIO.PWM(22, 100)
-        pwm1.start(0)
-    if pwm2 == None:
-        pwm2 = GPIO.PWM(25, 100)
-        pwm2.start(0)
-        print('motors on!')
+    print('handle_motion_command_gpio_pwm {0} {1}\r\n'.format(motComand, speedCommand))
 
-    if motComand == "top":
-        GPIO.output(27, True)
-        GPIO.output(17, False)
-        GPIO.output(24, True)
-        GPIO.output(23, False)
-        pwm1.ChangeDutyCycle(speedCommand)
-        pwm2.ChangeDutyCycle(speedCommand)
-    if motComand == "left":
-        GPIO.output(27, True)
-        GPIO.output(17, False)
-        GPIO.output(24, False)
-        GPIO.output(23, True)
-        pwm1.ChangeDutyCycle(speedCommand)
-        pwm2.ChangeDutyCycle(speedCommand)
-    if motComand == "right":
-        GPIO.output(27, False)
-        GPIO.output(17, True)
-        GPIO.output(24, True)
-        GPIO.output(23, False)
-        pwm1.ChangeDutyCycle(speedCommand)
-        pwm2.ChangeDutyCycle(speedCommand)
-    if motComand == "down":
-        GPIO.output(27, False)
-        GPIO.output(17, True)
-        GPIO.output(24, False)
-        GPIO.output(23, True)
-        pwm1.ChangeDutyCycle(speedCommand)
-        pwm2.ChangeDutyCycle(speedCommand)
-    if motComand == "stop":
-        GPIO.output(27, False)
-        GPIO.output(17, False)
-        GPIO.output(24, False)
-        GPIO.output(23, False)
-        pwm1.ChangeDutyCycle(0)
-        pwm2.ChangeDutyCycle(0)
+    try:        
+        if pwm1 == None:
+            pwm1 = GPIO.PWM(22, 100)
+            pwm1.start(0)
+        if pwm2 == None:
+            pwm2 = GPIO.PWM(25, 100)
+            pwm2.start(0)
+            print('motors on!\r\n')
+
+        if motComand == "top":
+            GPIO.output(27, True)
+            GPIO.output(17, False)
+            GPIO.output(24, True)
+            GPIO.output(23, False)
+            pwm1.ChangeDutyCycle(speedCommand)
+            pwm2.ChangeDutyCycle(speedCommand)
+        if motComand == "left":
+            GPIO.output(27, True)
+            GPIO.output(17, False)
+            GPIO.output(24, False)
+            GPIO.output(23, True)
+            pwm1.ChangeDutyCycle(speedCommand)
+            pwm2.ChangeDutyCycle(speedCommand)
+        if motComand == "right":
+            GPIO.output(27, False)
+            GPIO.output(17, True)
+            GPIO.output(24, True)
+            GPIO.output(23, False)
+            pwm1.ChangeDutyCycle(speedCommand)
+            pwm2.ChangeDutyCycle(speedCommand)
+        if motComand == "down":
+            GPIO.output(27, False)
+            GPIO.output(17, True)
+            GPIO.output(24, False)
+            GPIO.output(23, True)
+            pwm1.ChangeDutyCycle(speedCommand)
+            pwm2.ChangeDutyCycle(speedCommand)
+        if motComand == "stop":
+            GPIO.output(27, False)
+            GPIO.output(17, False)
+            GPIO.output(24, False)
+            GPIO.output(23, False)
+            pwm1.ChangeDutyCycle(0)
+            pwm2.ChangeDutyCycle(0)
+    except Exception as e:
+        print("GPIO or PWM exception {0}\r\n".format(e))
 
 #ОБРАБОТКА управляющих сообщений от сервера (запускается после получения сообщения от сервера)
 @sio.on('my_responseIO', namespace='/test')
@@ -370,9 +376,42 @@ def ping_pongR(data):
 def ping_pongV(data):
     sio.emit('my_pingV', {u'data': data}, namespace='/test')
 
+'''
 while True:
     try:
         sio.connect('https://evgenium.fvds.ru:5000') #адрес для коннекта
         sio.wait()
     except Exception as e:
         print(e)
+'''
+
+def handle_keypress(key):
+
+    CmdDic = {
+        curses.KEY_UP : "top",
+        curses.KEY_DOWN : "down",
+        curses.KEY_LEFT : "left",
+        curses.KEY_RIGHT : "right",
+        ord(' ') : "stop"
+    }
+
+    motCmd = CmdDic.get(key)
+    if motCmd != None:
+        handle_motion_command_gpio_pwm(motCmd, 50)
+    return True
+
+def main(win):
+    win.timeout(10) #msec
+
+    print("Motion console control : arrow keys to move, space to stop, 'q' to quit\r\n")
+    while True:          
+        try:                 
+           key = win.getch()         
+           if key == ord('q'):
+              break           
+           if key != -1:
+              handle_keypress(key)
+        except Exception as e:
+           print ("curses exception '" + str(e) + "'\r\n")
+
+curses.wrapper(main)
