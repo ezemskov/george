@@ -50,11 +50,19 @@ class Protocol:
 
 
 class ChassisInterface:
+    LogFilename="chassis_interface.log"
     ResendIntervalSec = 1.0       #Период передачи команд контроллеру
     I2cSlaveAddr = 80             #Адрес I2C slave (на arduino)
     DefaultBusNum = 6             #id i2c-устройства (/dev/i2c-N)
 
     def __init__(self, busNum = DefaultBusNum):
+
+        loggerHandlers = [
+            logging.StreamHandler(stream=stdout),
+            logging.FileHandler(filename=ChassisInterface.LogFilename)
+        ] 
+        logging.basicConfig(handlers=loggerHandlers, level=logging.DEBUG)
+
         self.bus = SMBus(busNum)     #todo : with ?
 
         self.speed = 0.0
@@ -135,7 +143,6 @@ def logUltrasonicResp(deviceId, respVal):
 
 if __name__ == '__main__':
     
-    logging.basicConfig(stream=stdout, level=logging.DEBUG)
     d = ChassisInterface()
     d.setWheelCallback(logWheelResp)
     d.setUltrasonicCallback(logUltrasonicResp)
