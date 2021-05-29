@@ -30,8 +30,8 @@ class Protocol:
         #todo : check parameter ranges
         speedScaled = int(speedRel * Protocol.SpeedMax)
         steeringScaled = int(steeringRel * Protocol.SteeringMax)
-        speedBuf = speedScaled.to_bytes(2, byteorder='big')
-        steeringBuf = steeringScaled.to_bytes(2, byteorder='big')
+        speedBuf = speedScaled.to_bytes(2, byteorder='big', signed=True)
+        steeringBuf = steeringScaled.to_bytes(2, byteorder='big', signed=True)
         return speedBuf + steeringBuf
 
     def ParseWheelResp(respBuf):

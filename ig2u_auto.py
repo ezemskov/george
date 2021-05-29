@@ -11,7 +11,6 @@ from threading import Thread
 import re
 import traceback
 import subprocess
-import logging
 from subprocess import Popen, PIPE, STDOUT 
 import select
 import signal
@@ -19,7 +18,6 @@ import psutil
 import RPi.GPIO as GPIO
 import board
 from ChassisInterface import ChassisInterface
-import logging            
 
 dit=None
 pwm1 = None
@@ -48,8 +46,7 @@ GPIO.setup(24, GPIO.OUT)
 GPIO.setup(23, GPIO.OUT)
 g_speed_command = 0
 g_mot_command = "stop"
-
-g_chassis = ChassisInterface()
+g_chassis = None
 
 #убиваем процесс по имени (вызов из stop_video)
 def kill_name():
@@ -246,9 +243,36 @@ def handle_motion_command_gpio_pwm(motComand, speedCommand):
         print("GPIO or PWM exception {0}\r\n".format(e))
 
 def handle_motion_command_i2c(motComand, speedCommand):
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG) #todo : lazily init
-    g_chassis.setSpeed(speedCommand) #todo : scale
-    g_chassis.setSteering(0.0)  #todo
+    global g_chassis
+
+    if g_chassis == None:
+        g_chassis = ChassisInterface()
+
+    print("handle_motion_command_i2c {0} {1}\r\n".format(motComand, speedCommand))
+
+    #Вычисляем speedCommandRel [-1..1] из направления motComand и модуля скорости speedCommand 
+    SpeedCommandMax = 100
+    assert (speedCommand >= 0) and (speedCommand <= SpeedCommandMax)
+    speedCmdRel = speedCommand / SpeedCommandMax
+
+    if motComand == "down":
+        speedCmdRel *= -1.0
+    if motComand == "stop":
+        speedCmdRel = 0.0
+
+    SteeringDic = {
+        "top" : 0.0,
+        "down" : 0.0,
+        "left" : -1.0,
+        "right" : 1.0,
+        "stop" : 0.0
+    }
+
+    steeringCmdRel = SteeringDic.get(motComand)
+    assert (steeringCmdRel != None)
+
+    g_chassis.setSpeed(speedCmdRel)
+    g_chassis.setSteering(steeringCmdRel)
 
 #ОБРАБОТКА управляющих сообщений от сервера (запускается после получения сообщения от сервера)
 @sio.on('my_responseIO', namespace='/test')
@@ -329,7 +353,8 @@ def test_broadcast_message(data):
       if inRasbery:
        motComand = params[1]
        speedCommand = int(params[2])
-       handle_motion_command_gpio_pwm(motComand, speedCommand)
+       #handle_motion_command_gpio_pwm(motComand, speedCommand)
+       handle_motion_command_i2c(g_mot_command, g_speed_command)
        
      except Exception as e:
       pass
@@ -424,18 +449,17 @@ def handle_keypress(key):
     handle_motion_command_i2c(g_mot_command, g_speed_command)
 
 def main_console(win):
-    print("Motion console control\r\n Arrow keys : direction\r\n '-'/'+' : speed\r\nspace : stop\r\n 'q' exit\r\n")
     win.timeout(10) #msec
 
     while True:          
         try:                 
            key = win.getch()         
            if key == ord('q'):
-              break           
+              quit()           
            if key != -1:
               handle_keypress(key)
         except Exception as e:
-           print ("curses exception '" + str(e) + "'\r\n")
+           print ("Exception '" + str(e) + "'\r\n")
 
 curses.wrapper(main_console)
 #main_remote()
