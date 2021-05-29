@@ -18,6 +18,8 @@ import signal
 import psutil
 import RPi.GPIO as GPIO
 import board
+from ChassisInterface import ChassisInterface
+import logging            
 
 dit=None
 pwm1 = None
@@ -46,6 +48,8 @@ GPIO.setup(24, GPIO.OUT)
 GPIO.setup(23, GPIO.OUT)
 g_speed_command = 0
 g_mot_command = "stop"
+
+g_chassis = ChassisInterface()
 
 #убиваем процесс по имени (вызов из stop_video)
 def kill_name():
@@ -241,6 +245,11 @@ def handle_motion_command_gpio_pwm(motComand, speedCommand):
     except Exception as e:
         print("GPIO or PWM exception {0}\r\n".format(e))
 
+def handle_motion_command_i2c(motComand, speedCommand):
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG) #todo : lazily init
+    g_chassis.setSpeed(speedCommand) #todo : scale
+    g_chassis.setSteering(0.0)  #todo
+
 #ОБРАБОТКА управляющих сообщений от сервера (запускается после получения сообщения от сервера)
 @sio.on('my_responseIO', namespace='/test')
 def test_broadcast_message(data):
@@ -411,7 +420,8 @@ def handle_keypress(key):
     if motCmd != None:
         g_mot_command = motCmd
 
-    handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
+    #handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
+    handle_motion_command_i2c(g_mot_command, g_speed_command)
 
 def main_console(win):
     print("Motion console control\r\n Arrow keys : direction\r\n '-'/'+' : speed\r\nspace : stop\r\n 'q' exit\r\n")
@@ -427,5 +437,5 @@ def main_console(win):
         except Exception as e:
            print ("curses exception '" + str(e) + "'\r\n")
 
-#curses.wrapper(main_console)
-main_remote()
+curses.wrapper(main_console)
+#main_remote()

@@ -79,7 +79,7 @@ class ChassisInterface:
     def setSpeed(self, speed_) : 
         self.speed = speed_
 
-    def setSteering(self, steering) : 
+    def setSteering(self, steering_) : 
         self.steering = steering_
 
     def __sendWheelCmd(self, deviceId):
