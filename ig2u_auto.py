@@ -3,7 +3,6 @@ import os
 import socketio
 import datetime
 import time
-import pigpio
 import threading 
 import time
 import sys
@@ -15,35 +14,20 @@ from subprocess import Popen, PIPE, STDOUT
 import select
 import signal
 import psutil
-import RPi.GPIO as GPIO
 import board
 from ChassisInterface import ChassisInterface
 
 dit=None
-pwm1 = None
-pwm2 = None
 ads = None
-PAUSE_START_VIDEO = 0.0         # пауза перед стартом видео
+PAUSE_START_VIDEO = 0.0
 pro=None
-DIF_ANGLE = -1
 inRasbery = True
 sio = socketio.Client()
-mob_range = (0,180) #диапазон углов
-robo_range_18 = (600, 2400)
-#robo_range_27 = (600, 2400) #диапазон сигналов на пин27
-#robo_range_17 = (600, 2400) #диапазон сигналов на пин17
 start_time = time.time()
 connected = False
 last_response = None
 ms = 0
 video = None
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(22, GPIO.OUT)
-GPIO.setup(27, GPIO.OUT)
-GPIO.setup(17, GPIO.OUT)
-GPIO.setup(25, GPIO.OUT)
-GPIO.setup(24, GPIO.OUT)
-GPIO.setup(23, GPIO.OUT)
 g_speed_command = 0
 g_mot_command = "stop"
 g_chassis = None
@@ -153,94 +137,13 @@ def map_range(a,b,s):
 @sio.event(namespace='/test') #действия при запуске
 def connect():
     global dit
-    global pwm1
-    global pwm2
     global ads
     global connected
 #    global start_time
     global ms
     last_response = datetime.datetime.utcnow()
     connected = True
-    dit=pigpio.pi() #создаем объект для работы с моторами
-    if pwm1 == None:
-         pwm1 = GPIO.PWM(22, 100)
-         pwm1.start(0)
-    if pwm2 == None:
-         pwm2 = GPIO.PWM(25, 100)
-         pwm2.start(0)
-         print('motors on!')
     print('connection established')
-    try:
-        while connected:   #проверяем были ли отправлены команды с клиента в течении 10 секунд, если нет - глушим момторы
-            sio.sleep(1)
-            ping_pongR(ms)
-            delta =  datetime.datetime.utcnow() - last_response
-#            print("last active is : " + str(last_response))
-            if delta > datetime.timedelta(seconds=10) and dit!=None:
-                print("delta is : " + str(delta) + " DIT MUST BE DESTROYED!")
-                dit.set_servo_pulsewidth(18,0)                      #отключаем писание моторов
-                #dit.set_servo_pulsewidth(27,0)
-                dit.stop()                                          #stop объект для работы с моторами
-                dit=None
-                print('dit stop 98', dit)
-#            else:
-#                print("delta is : " + str(delta) + " DIT CAN BE ACTIVE!")
-    except KeyboardInterrupt:
-        print('interrupted!')
-
-
-def handle_motion_command_gpio_pwm(motComand, speedCommand):
-    global pwm1
-    global pwm2
-
-    print('handle_motion_command_gpio_pwm {0} {1}\r\n'.format(motComand, speedCommand))
-
-    try:        
-        if pwm1 == None:
-            pwm1 = GPIO.PWM(22, 100)
-            pwm1.start(0)
-        if pwm2 == None:
-            pwm2 = GPIO.PWM(25, 100)
-            pwm2.start(0)
-            print('motors on!\r\n')
-
-        if motComand == "top":
-            GPIO.output(27, True)
-            GPIO.output(17, False)
-            GPIO.output(24, True)
-            GPIO.output(23, False)
-            pwm1.ChangeDutyCycle(speedCommand)
-            pwm2.ChangeDutyCycle(speedCommand)
-        if motComand == "left":
-            GPIO.output(27, True)
-            GPIO.output(17, False)
-            GPIO.output(24, False)
-            GPIO.output(23, True)
-            pwm1.ChangeDutyCycle(speedCommand)
-            pwm2.ChangeDutyCycle(speedCommand)
-        if motComand == "right":
-            GPIO.output(27, False)
-            GPIO.output(17, True)
-            GPIO.output(24, True)
-            GPIO.output(23, False)
-            pwm1.ChangeDutyCycle(speedCommand)
-            pwm2.ChangeDutyCycle(speedCommand)
-        if motComand == "down":
-            GPIO.output(27, False)
-            GPIO.output(17, True)
-            GPIO.output(24, False)
-            GPIO.output(23, True)
-            pwm1.ChangeDutyCycle(speedCommand)
-            pwm2.ChangeDutyCycle(speedCommand)
-        if motComand == "stop":
-            GPIO.output(27, False)
-            GPIO.output(17, False)
-            GPIO.output(24, False)
-            GPIO.output(23, False)
-            pwm1.ChangeDutyCycle(0)
-            pwm2.ChangeDutyCycle(0)
-    except Exception as e:
-        print("GPIO or PWM exception {0}\r\n".format(e))
 
 def handle_motion_command_i2c(motComand, speedCommand):
     global g_chassis
@@ -280,24 +183,12 @@ def test_broadcast_message(data):
     print('message received with ', data)
     global last_response
     global dit
-
     global video
     last_response = datetime.datetime.utcnow()
     params = data.split("-")                                         # разбиваем строку сообщения от сервера
-    if dit==None:
-     dit=pigpio.pi() #создаем объект для работы с моторами
-     print('motors on!')
     if 1==1:
      mode = params[0]
      if mode == "ser":
-
-         if dit==None:
-            dit=pigpio.pi() #создаем объект для работы с моторами
-            print('motors on!')
-
-         x0=int(params[1])
-         y0=int(params[2])
-
     #===== запускаем и глушим видео в засисимости от цифры в сообщении от сервера
          if len(params)>3:
           video=int(params[3])
@@ -330,24 +221,7 @@ def test_broadcast_message(data):
                threading.Timer(PAUSE_START_VIDEO, start_videoZad).start()
                start_videoZad()
                pass               
-         if inRasbery:
-          if DIF_ANGLE < 0:
-           dit.set_servo_pulsewidth(18,1500)       # устанавливаем в начальное положение
-           #dit.set_servo_pulsewidth(27,1500)       # устанавливаем в начальное положение
 
-         x0 = DIF_ANGLE + x0
-
-         x1=x0
-         y1=y0
-         x = map_range(mob_range,robo_range_18,int(x1))       # переводим азимут в команду
-         #y = map_range(mob_range,robo_range_27,int(y1))       # переводим тангаж в команду
-         try:
-          if inRasbery:
-           if(dit.connected):
-            dit.set_servo_pulsewidth(18,int(x))                  # отправляем команды на мотор
-            #dit.set_servo_pulsewidth(27,int(y))
-         except Exception as e:
-          pass
     if mode == "mot":
      try:
       if inRasbery:
@@ -363,8 +237,6 @@ def test_broadcast_message(data):
 def disconnect():
     print('disconnected from server')
     global dit
-    global pwm1
-    global pwm2
     global connected
     global video 
     connected = False
@@ -376,13 +248,6 @@ def disconnect():
      print('dit stop 98', dit)
     if video!=0:
      stop_video()
-    if pwm1 != None:
-         pwm1.stop()
-         pwm1 = None
-    if pwm2 != None:
-         pwm2.stop()
-         pwm2 = None
-         print('motors stop!')
 
 def ping_pongStart():
     global start_time
