@@ -58,7 +58,7 @@ class ChassisInterface:
     LogFilename="chassis_interface.log"
     ResendIntervalSec = 1.0       #Период передачи команд контроллеру
     I2cSlaveAddr = 80             #Адрес I2C slave (на arduino)
-    DefaultBusNum = 6             #id i2c-устройства (/dev/i2c-N)
+    DefaultBusNum = 0             #id i2c-устройства (/dev/i2c-N)
 
     def __init__(self, busNum = DefaultBusNum):
 
@@ -109,7 +109,8 @@ class ChassisInterface:
     def __receiveWheelResponse(self, deviceId):
         offs = Protocol.FormatOffset(Protocol.CmdId.WheelResp, deviceId)
         try:
-            respBytes = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, 4);
+            respList = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, 4)
+            respBytes = bytes(respList)
             logging.debug('Received from offset {0}: [0x{1}]'.format(hex(offs), respBytes.hex()))
 
             respTuple = Protocol.ParseWheelResp(respBytes)
@@ -121,7 +122,8 @@ class ChassisInterface:
     def __receiveUltrasonicResponse(self, deviceId):
         offs = Protocol.FormatOffset(Protocol.CmdId.UltrasonicQuery, deviceId)
         try:
-            respBytes = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, 2);
+            respList = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, 2)
+            respBytes = bytes(respList)
             logging.debug('Received from offset {0}: [0x{1}]'.format(hex(offs), respBytes.hex()))
             respInt = Protocol.ParseUltrasonicResp(respBytes)
             if (self.ultrasonicCallback != None and respInt != None) : 

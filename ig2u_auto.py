@@ -225,9 +225,9 @@ def test_broadcast_message(data):
     if mode == "mot":
      try:
       if inRasbery:
-       motComand = params[1]
-       speedCommand = int(params[2])
-       #handle_motion_command_gpio_pwm(motComand, speedCommand)
+       g_mot_command = params[1]
+       g_speed_command = int(params[2])
+       #handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
        handle_motion_command_i2c(g_mot_command, g_speed_command)
        
      except Exception as e:
@@ -326,5 +326,5 @@ def main_console(win):
         except Exception as e:
            print ("Exception '" + str(e) + "'\r\n")
 
-curses.wrapper(main_console)
-#main_remote()
+#curses.wrapper(main_console)
+main_remote()
