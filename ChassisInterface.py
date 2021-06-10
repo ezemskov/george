@@ -21,6 +21,7 @@ class Protocol:
 
     SpeedMax = 1000
     SteeringMax = 1000
+    StartFrame = int(0xABCD)
 
     def FormatOffset(cmdId, deviceId):
         return ((int(cmdId) << 4) & 0xF0) | (int(deviceId) & 0x0F); 
@@ -30,16 +31,25 @@ class Protocol:
         #todo : check parameter ranges
         speedScaled = int(speedRel * Protocol.SpeedMax)
         steeringScaled = int(steeringRel * Protocol.SteeringMax)
+        startFrameBuf = Protocol.StartFrame.to_bytes(2, byteorder='big', signed=False)
         speedBuf = speedScaled.to_bytes(2, byteorder='big', signed=True)
         steeringBuf = steeringScaled.to_bytes(2, byteorder='big', signed=True)
-        return speedBuf + steeringBuf
+        checksumBuf = []
+
+        for x, y, z in zip(startFrameBuf, speedBuf, steeringBuf):
+            xorByte = x ^ y ^ z
+            checksumBuf.append(xorByte)
+
+        return startFrameBuf + speedBuf + steeringBuf + bytes(checksumBuf)
 
     def ParseWheelResp(respBuf):
-        if len(respBuf) < 4:
+        if len(respBuf) < 8:
             return None
         
-        speedL = int.from_bytes(respBuf[0:2], byteorder='big', signed=True)
-        speedR = int.from_bytes(respBuf[2:4], byteorder='big', signed=True)
+        start = int.from_bytes(respBuf[0:2], byteorder='big', signed=False)
+        speedL = int.from_bytes(respBuf[2:4], byteorder='big', signed=True)
+        speedR = int.from_bytes(respBuf[4:6], byteorder='big', signed=True)
+        checksum = int.from_bytes(respBuf[6:8], byteorder='big', signed=False)
         return (speedL, speedR)
 
     def ParseUltrasonicResp(respBuf):
@@ -135,11 +145,11 @@ class ChassisInterface:
         while True:
             self.__sendWheelCmd(Protocol.DeviceId.FrontAxis)
             self.__sendWheelCmd(Protocol.DeviceId.RearAxis)
-            self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
-            self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
+            #self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
+            #self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
 
-            for devId in range(Protocol.DeviceId.Ultrasonic1, Protocol.DeviceId.Ultrasonic4):
-                self.__receiveUltrasonicResponse(devId)
+            #for devId in range(Protocol.DeviceId.Ultrasonic1, Protocol.DeviceId.Ultrasonic4):
+            #    self.__receiveUltrasonicResponse(devId)
 
             sleep(ChassisInterface.ResendIntervalSec)
 
