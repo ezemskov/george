@@ -21,7 +21,6 @@ class Protocol:
 
     SpeedMax = 1000
     SteeringMax = 1000
-    StartFrame = int(0xABCD)
 
     def FormatOffset(cmdId, deviceId):
         return ((int(cmdId) << 4) & 0xF0) | (int(deviceId) & 0x0F); 
@@ -31,25 +30,23 @@ class Protocol:
         #todo : check parameter ranges
         speedScaled = int(speedRel * Protocol.SpeedMax)
         steeringScaled = int(steeringRel * Protocol.SteeringMax)
-        startFrameBuf = Protocol.StartFrame.to_bytes(2, byteorder='big', signed=False)
         speedBuf = speedScaled.to_bytes(2, byteorder='big', signed=True)
         steeringBuf = steeringScaled.to_bytes(2, byteorder='big', signed=True)
         checksumBuf = []
 
-        for x, y, z in zip(startFrameBuf, speedBuf, steeringBuf):
-            xorByte = x ^ y ^ z
+        for x, y in zip(speedBuf, steeringBuf):
+            xorByte = x ^ y
             checksumBuf.append(xorByte)
 
-        return startFrameBuf + speedBuf + steeringBuf + bytes(checksumBuf)
+        return speedBuf + steeringBuf + bytes(checksumBuf)
 
     def ParseWheelResp(respBuf):
         if len(respBuf) < 8:
             return None
         
-        start = int.from_bytes(respBuf[0:2], byteorder='big', signed=False)
-        speedL = int.from_bytes(respBuf[2:4], byteorder='big', signed=True)
-        speedR = int.from_bytes(respBuf[4:6], byteorder='big', signed=True)
-        checksum = int.from_bytes(respBuf[6:8], byteorder='big', signed=False)
+        speedL = int.from_bytes(respBuf[0:2], byteorder='big', signed=True)
+        speedR = int.from_bytes(respBuf[2:4], byteorder='big', signed=True)
+        checksum = int.from_bytes(respBuf[4:6], byteorder='big', signed=False)
         return (speedL, speedR)
 
     def ParseUltrasonicResp(respBuf):
