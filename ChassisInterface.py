@@ -41,12 +41,11 @@ class Protocol:
         return speedBuf + steeringBuf + bytes(checksumBuf)
 
     def ParseWheelResp(respBuf):
-        if len(respBuf) < 8:
+        if len(respBuf) < 4:
             return None
         
         speedL = int.from_bytes(respBuf[0:2], byteorder='big', signed=True)
         speedR = int.from_bytes(respBuf[2:4], byteorder='big', signed=True)
-        checksum = int.from_bytes(respBuf[4:6], byteorder='big', signed=False)
         return (speedL, speedR)
 
     def ParseUltrasonicResp(respBuf):
@@ -63,17 +62,19 @@ class SMBusStub:
 
 class ChassisInterface:
     LogFilename="chassis_interface.log"
+    LogRecordFormat="%(asctime)s %(levelname)s %(message)s"
     ResendIntervalSec = 1.0       #Период передачи команд контроллеру
+    InterCmdPauseSeс = 0.05       #Интервал между I2C-транзакциями
     I2cSlaveAddr = 80             #Адрес I2C slave (на arduino)
-    DefaultBusNum = 0             #id i2c-устройства (/dev/i2c-N)
+    DefaultBusNum = 1             #id i2c-устройства (/dev/i2c-N)
 
     def __init__(self, busNum = DefaultBusNum):
 
         loggerHandlers = [
-            #logging.StreamHandler(stream=stdout),
+            logging.StreamHandler(stream=stdout),
             logging.FileHandler(filename=ChassisInterface.LogFilename)
         ] 
-        logging.basicConfig(handlers=loggerHandlers, level=logging.DEBUG)
+        logging.basicConfig(handlers=loggerHandlers, level=logging.DEBUG, format=ChassisInterface.LogRecordFormat)
 
         self.bus = SMBus(busNum)
         #self.bus = SMBusStub()
@@ -110,8 +111,8 @@ class ChassisInterface:
         logging.debug('Send to offset {0}: [0x{1}]'.format(hex(offs), cmdBytes.hex()))
         try:
             self.bus.write_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, cmdBytes)
-        except OSError:
-            logging.error('I2C error')
+        except OSError as exc:
+            logging.error('I2C error : '.format(exc))
 
     def __receiveWheelResponse(self, deviceId):
         offs = Protocol.FormatOffset(Protocol.CmdId.WheelResp, deviceId)
@@ -123,8 +124,8 @@ class ChassisInterface:
             respTuple = Protocol.ParseWheelResp(respBytes)
             if (self.wheelCallback != None and respTuple != None) : 
                 self.wheelCallback(deviceId, respTuple)
-        except OSError:
-            logging.error('I2C error')
+        except OSError as exc:
+            logging.error('I2C error : '.format(exc))
 
     def __receiveUltrasonicResponse(self, deviceId):
         offs = Protocol.FormatOffset(Protocol.CmdId.UltrasonicQuery, deviceId)
@@ -135,18 +136,22 @@ class ChassisInterface:
             respInt = Protocol.ParseUltrasonicResp(respBytes)
             if (self.ultrasonicCallback != None and respInt != None) : 
                 self.ultrasonicCallback(deviceId, respInt)
-        except OSError:
-            logging.error('I2C error')
+        except OSError as exc:
+            logging.error('I2C error : '.format(exc))
 
     def __run(self):
         while True:
             self.__sendWheelCmd(Protocol.DeviceId.FrontAxis)
             self.__sendWheelCmd(Protocol.DeviceId.RearAxis)
-            #self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
-            #self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
+            sleep(2*ChassisInterface.InterCmdPauseSeс)   
+            self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
+            sleep(ChassisInterface.InterCmdPauseSeс)   
+            self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
+            sleep(ChassisInterface.InterCmdPauseSeс)   
 
-            #for devId in range(Protocol.DeviceId.Ultrasonic1, Protocol.DeviceId.Ultrasonic4):
-            #    self.__receiveUltrasonicResponse(devId)
+            for devId in range(Protocol.DeviceId.Ultrasonic1, Protocol.DeviceId.Ultrasonic4+1):
+                self.__receiveUltrasonicResponse(devId)
+                sleep(ChassisInterface.InterCmdPauseSeс)   
 
             sleep(ChassisInterface.ResendIntervalSec)
 
