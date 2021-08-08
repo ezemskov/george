@@ -18,6 +18,7 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "sensor_msgs/msg/image.hpp"
 
 using std::placeholders::_1;
 
@@ -27,12 +28,29 @@ public:
   RcamSubscriber(const std::string& topicName)
   : Node("rcam_subscriber")
   {
-    subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-      topicName, 10, std::bind(&RcamSubscriber::TopicCallback, this, _1));
+    subscriptions_.push_back(this->create_subscription<sensor_msgs::msg::Image>(
+          topicName, 10, std::bind(&RcamSubscriber::ImageCallback, this, _1)
+    ));
+
+    subscriptions_.push_back(this->create_subscription<sensor_msgs::msg::PointCloud2>(
+          topicName, 10, std::bind(&RcamSubscriber::PointCloud2Callback, this, _1)
+    ));
   }
 
 private:
-  void TopicCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) const
+  void ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) const
+  {
+    const auto& ts_ = msg->header.stamp;
+    const double ts = ts_.sec + 10E-9 * ts_.nanosec;
+    RCLCPP_INFO(this->get_logger(), "Received Image: '%s' ts [%.9f] dims [%dx%d] step %d %s", 
+      msg->header.frame_id.c_str(), ts,
+      msg->width, msg->height,
+      msg->step,
+      (msg->is_bigendian ? "BE":"LE")
+    );
+  }
+
+  void PointCloud2Callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) const
   {
     const auto& ts_ = msg->header.stamp;
     const double ts = ts_.sec + 10E-9 * ts_.nanosec;
@@ -44,7 +62,8 @@ private:
       int(msg->is_dense)
     );
   }
-  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
+
+  std::vector<rclcpp::SubscriptionBase::SharedPtr> subscriptions_;
 };
 
 int main(int argc, char * argv[])
