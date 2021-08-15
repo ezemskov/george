@@ -16,6 +16,7 @@ import signal
 import psutil
 import board
 from ChassisInterface import ChassisInterface
+from RealsenseWrapper import RealsenseWrapper
 
 dit=None
 ads = None
@@ -31,6 +32,8 @@ video = None
 g_speed_command = 0
 g_mot_command = "stop"
 g_chassis = None
+g_rs = None
+g_minDepth = -1
 
 #убиваем процесс по имени (вызов из stop_video)
 def kill_name():
@@ -145,11 +148,19 @@ def connect():
     connected = True
     print('connection established')
 
+def minDepthCallback(minDepth):
+    g_minDepth = minDepth
+
 def handle_motion_command_i2c(motComand, speedCommand):
     global g_chassis
 
     if g_chassis == None:
         g_chassis = ChassisInterface()
+
+    if g_rs == None:
+        g_rs = RealsenseWrapper()
+        g_rs.setRoi(100, 748, 0, 380)
+        rs.setCallback(minDepthCallback)
 
     print("handle_motion_command_i2c {0} {1}\r\n".format(motComand, speedCommand))
 
@@ -309,6 +320,12 @@ def handle_keypress(key):
     motCmd = CmdDic.get(key)
     if motCmd != None:
         g_mot_command = motCmd
+
+    if (g_minDepth > 0):
+        if (g_minDepth < 1.) : 
+            g_speed_command = min(g_speed_command, 10)
+        if (g_minDepth < 0.4) : 
+            g_speed_command = 0
 
     #handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
     handle_motion_command_i2c(g_mot_command, g_speed_command)
