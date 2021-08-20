@@ -84,13 +84,13 @@ class ChassisInterface:
         self.wheelCallback = None
         self.ultrasonicCallback = None
 
-        thread = threading.Thread(target=self.__run)
-        thread.start()
+        self.thread = threading.Thread(target=self.__run)
+        self.thread.start()
 
     #todo : interrupt and join the thread nicely
     #def __del__(self):
         #todo : set event to interrupt thread
-        #thread.join();    
+        #self.thread.join();    
     
     def setWheelCallback(self, callback):
         self.wheelCallback = callback
