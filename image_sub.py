@@ -7,6 +7,7 @@
 # Import the necessary libraries
 import rclpy # Python library for ROS 2
 from rclpy.node import Node # Handles the creation of nodes
+from rclpy import qos
 from sensor_msgs.msg import Image # Image is the message type
 from cv_bridge import CvBridge # Package to convert between ROS and OpenCV Images
 import cv2 # OpenCV library
@@ -29,9 +30,11 @@ class ImageSubscriber(Node):
       Image, 
       ros_topic_name, 
       self.listener_callback, 
-      10)
+      qos.qos_profile_sensor_data)
     self.subscription # prevent unused variable warning
-      
+
+    self.get_logger().info('Subscribed on ' + ros_topic_name)
+
     # Used to convert between ROS and OpenCV images
     self.br = CvBridge()
    
