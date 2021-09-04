@@ -7,13 +7,13 @@ import cv2 as cv
 import numpy as np
 import pyrealsense2 as realsense
 
-class RealsenseWrapper:
-    LogFilename="realsense_wrapper.log"
+class MinDepthPyrealsense2:
+    LogFilename="realsense.log"
 
     def __init__(self):
         loggerHandlers = [
             logging.StreamHandler(stream=stdout),
-            #logging.FileHandler(filename=RealsenseWrapper.LogFilename)
+            #logging.FileHandler(filename=MinDepthPyrealsense2.LogFilename)
         ] 
         logging.basicConfig(handlers=loggerHandlers, level=logging.DEBUG)
 
@@ -70,7 +70,7 @@ def logMinDepth(minDepth):
     logging.debug('Min depth in frame {0}'.format(minDepth))
 
 if __name__ == '__main__':
-    rs = RealsenseWrapper()
+    rs = MinDepthPyrealsense2()
     rs.setCallback(logMinDepth)
     rs.setRoi(100, 748, 0, 380)
 

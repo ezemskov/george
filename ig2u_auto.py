@@ -16,7 +16,8 @@ import signal
 import psutil
 import board
 from ChassisInterface import ChassisInterface
-from RealsenseWrapper import RealsenseWrapper
+from ROS_ImageSubscriber import ImageSubscriberWrapper
+from MinDepthRealsenseROS import MinDepthRealsenseROS
 
 dit=None
 ads = None
@@ -32,7 +33,8 @@ video = None
 g_speed_command = 0
 g_mot_command = "stop"
 g_chassis = None
-g_rs = None
+g_ros_sub = None
+g_min_depth_calc = None
 g_minDepth = -1
 
 #убиваем процесс по имени (вызов из stop_video)
@@ -148,8 +150,8 @@ def connect():
     connected = True
     print('connection established')
 
-def minDepthCallback(minDepth):
-    g_minDepth = minDepth
+def processDepthImage(depthImage):
+    g_minDepth = g_min_depth_calc.processDepthImage(depthImage)
 
 def handle_motion_command_i2c(motComand, speedCommand):
     global g_chassis
@@ -157,10 +159,13 @@ def handle_motion_command_i2c(motComand, speedCommand):
     if g_chassis == None:
         g_chassis = ChassisInterface()
 
-    if g_rs == None:
-        g_rs = RealsenseWrapper()
-        g_rs.setRoi(100, 748, 0, 380)
-        rs.setCallback(minDepthCallback)
+    if g_min_depth_calc == None:
+        g_min_depth_calc = MinDepthRealsenseROS()
+
+    if g_ros_sub == None:
+        g_ros_sub = ImageSubscriberWrapper('/depth/image_rect_raw')
+        g_ros_sub.setRoi(100, 748, 0, 380)
+        g_ros_sub.setCallback(processDepthImage)
 
     print("handle_motion_command_i2c {0} {1}\r\n".format(motComand, speedCommand))
 
