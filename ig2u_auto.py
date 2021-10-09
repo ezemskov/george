@@ -15,9 +15,8 @@ import select
 import signal
 import psutil
 import board
-from ChassisInterface import ChassisInterface
-from ROS_ImageSubscriber import ImageSubscriberWrapper
-from MinDepthRealsenseROS import MinDepthRealsenseROS
+
+from CollisionAvoidanceManager import CollisionAvoidanceManager 
 
 dit=None
 ads = None
@@ -32,10 +31,7 @@ ms = 0
 video = None
 g_speed_command = 0
 g_mot_command = "stop"
-g_chassis = None
-g_ros_sub = None
-g_min_depth_calc = None
-g_minDepth = -1
+g_coav = None
 
 #убиваем процесс по имени (вызов из stop_video)
 def kill_name():
@@ -150,48 +146,15 @@ def connect():
     connected = True
     print('connection established')
 
-def processDepthImage(depthImage):
-    g_minDepth = g_min_depth_calc.processDepthImage(depthImage)
-
 def handle_motion_command_i2c(motComand, speedCommand):
-    global g_chassis
+    global g_coav
 
-    if g_chassis == None:
-        g_chassis = ChassisInterface()
-
-    if g_min_depth_calc == None:
-        g_min_depth_calc = MinDepthRealsenseROS()
-
-    if g_ros_sub == None:
-        g_ros_sub = ImageSubscriberWrapper('/depth/image_rect_raw')
-        g_ros_sub.setRoi(100, 748, 0, 380)
-        g_ros_sub.setCallback(processDepthImage)
+    if g_coav == None:
+        g_coav = CollisionAvoidanceManager()
 
     print("handle_motion_command_i2c {0} {1}\r\n".format(motComand, speedCommand))
 
-    #Вычисляем speedCommandRel [-1..1] из направления motComand и модуля скорости speedCommand 
-    SpeedCommandMax = 100
-    assert (speedCommand >= 0) and (speedCommand <= SpeedCommandMax)
-    speedCmdRel = speedCommand / SpeedCommandMax
-
-    if motComand == "down":
-        speedCmdRel *= -1.0
-    if motComand == "stop":
-        speedCmdRel = 0.0
-
-    SteeringDic = {
-        "top" : 0.0,
-        "down" : 0.0,
-        "left" : -1.0,
-        "right" : 1.0,
-        "stop" : 0.0
-    }
-
-    steeringCmdRel = SteeringDic.get(motComand)
-    assert (steeringCmdRel != None)
-
-    g_chassis.setSpeed(speedCmdRel)
-    g_chassis.setSteering(steeringCmdRel)
+    g_coav.updateCmd(motComand, speedCommand)
 
 #ОБРАБОТКА управляющих сообщений от сервера (запускается после получения сообщения от сервера)
 @sio.on('my_responseIO', namespace='/test')
@@ -325,12 +288,6 @@ def handle_keypress(key):
     motCmd = CmdDic.get(key)
     if motCmd != None:
         g_mot_command = motCmd
-
-    if (g_minDepth > 0):
-        if (g_minDepth < 1.) : 
-            g_speed_command = min(g_speed_command, 10)
-        if (g_minDepth < 0.4) : 
-            g_speed_command = 0
 
     #handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
     handle_motion_command_i2c(g_mot_command, g_speed_command)
