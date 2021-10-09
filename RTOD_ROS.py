@@ -23,11 +23,13 @@ class RTOD:
   def __init__(self, args_):
     self.args = args_
 
+    self.callback = args_.get("callback")
+
     # load our serialized model from disk
     print("[INFO] loading model...")
     self.net = cv2.dnn.readNetFromCaffe(self.args["prototxt"], self.args["model"])
 
-  def NumpyImageCallback(self, frame):
+  def ProcessNumpyImage(self, frame):
     frameResized = imutils.resize(frame, width=400)
 
     # grab the frame dimensions and convert it to a blob
@@ -45,29 +47,39 @@ class RTOD:
         # extract the confidence (i.e., probability) associated with
         # the prediction
         confidence = detections[0, 0, i, 2]
+        classIdx = int(detections[0, 0, i, 1])
+        className = RTOD.CLASSES[classIdx]
+        classFilter = self.args.get("class")
+        classColor = RTOD.COLORS[classIdx]
+
+        isClassFiltered = (classFilter == False) or (classFilter == className)
+        isConfidenceFiltered = (confidence > self.args.get("confidence"))
 
         # filter out weak detections by ensuring the `confidence` is
         # greater than the minimum confidence
-        if confidence > args["confidence"]:
+        if isConfidenceFiltered and isClassFiltered:
             # extract the index of the class label from the
             # `detections`, then compute the (x, y)-coordinates of
             # the bounding box for the object
-            idx = int(detections[0, 0, i, 1])
             box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
             (startX, startY, endX, endY) = box.astype("int")
             
             # draw the prediction on the frame
-            label = "{}: {:.2f}%".format(RTOD.CLASSES[idx], confidence * 100)
-            cv2.rectangle(frameResized, (startX, startY), (endX, endY),
-                RTOD.COLORS[idx], 2)
+            label = "{}: {:.2f}%".format(className, confidence * 100)
+
+            if (self.callback): 
+                self.callback(startX, startY, endX, endY, className)
+
+            #todo : move drawing to a subclass
+            cv2.rectangle(frameResized, (startX, startY), (endX, endY), classColor, 2)
             y = startY - 15 if startY - 15 > 15 else startY + 15
             print("#{} label '{}' rect [{} {} {} {}]".format(i, label, startY, endY, startX, endX))
-            cv2.putText(frameResized, label, (startX, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, RTOD.COLORS[idx], 2)
+            cv2.putText(frameResized, label, (startX, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, classColor, 2)
 
     #cv2.imwrite('rtod_result.png', frameResized)
     #cv2.imshow("Frame", frame)
     #cv2.imshow("Frame resized", frameResized)
-    cv2.waitKey(1)
+    #cv2.waitKey(1)
 
 
 # construct the argument parse and parse the arguments
@@ -80,12 +92,12 @@ ap.add_argument("-c", "--confidence", type=float, default=0.2,
     help="minimum probability to filter weak detections")
 ap.add_argument("-t", "--topic", type=str, required=True,
     help="ROS topic name to subscribe on")
-args = vars(ap.parse_args())
+ap.add_argument("-l", "--class", type=str, default="",
+    help="Filter specific detection class")
 
-
-rtod = RTOD(args) 
-
-ros_subscriber = ImageSubscriberWrapper(args["topic"], rtod.NumpyImageCallback)
-
-# do a bit of cleanup
-cv2.destroyAllWindows()
+if __name__ == '__main__':
+    args = vars(ap.parse_args())
+    rtod = RTOD(args) 
+    ros_subscriber = ImageSubscriberWrapper(args["topic"], rtod.ProcessNumpyImage)
+    # do a bit of cleanup
+    cv2.destroyAllWindows()

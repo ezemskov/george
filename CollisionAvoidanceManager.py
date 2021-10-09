@@ -1,7 +1,7 @@
 from ChassisInterface import ChassisInterface, Protocol
 from ROS_ImageSubscriber import ImageSubscriberWrapper
 from MinDepthRealsenseROS import MinDepthRealsenseROS
-
+from RTOD_ROS import RTOD
 
 class Cfg:
     #УЗ-датчик возвращает время от передачи до приема импульса в мксек (?)
@@ -10,12 +10,24 @@ class Cfg:
     RangeSlowMeters = 1.0
     RangeStopMeters = 0.4
 
+    DetectionSizeMaxPx = {
+        "x" : 100,
+        "y" : 200
+    }    
+
     SteeringDic = {
         "top" : 0.0,
         "down" : 0.0,
         "left" : -1.0,
         "right" : 1.0,
         "stop" : 0.0
+    }
+
+    RTODCfg = {
+        "prototxt"   : "MobileNetSSD_deploy.prototxt.txt",
+        "model"      : "MobileNetSSD_deploy.caffemodel",
+        "confidence" : 0.2,
+        "class"      : "person"
     }
 
 class CollisionAvoidanceManager:
@@ -28,16 +40,30 @@ class CollisionAvoidanceManager:
         }
 
         self._chassis = ChassisInterface()
+        self._chassis.setUltrasonicCallback(self.updateUltrasonic)
+
         self._min_depth_calc = MinDepthRealsenseROS()
         self._min_depth_calc.setRoi(100, 748, 0, 380)
-        self._ros_sub = ImageSubscriberWrapper('/depth/image_rect_raw', self.processDepthImage)
+
+        Cfg.RTODCfg["callback"] = self.updateRTDetection    #NB modifying a global/static dictionary, but who cares
+        self._rtod = RTOD(Cfg.RTODCfg)
+        self._rosSubColor = ImageSubscriberWrapper('/color/image_raw', self._rtod.ProcessNumpyImage)
+
+        self._rosSubDepth = ImageSubscriberWrapper('/depth/image_rect_raw', self.processDepthImage)
 
         self._steeringCmdRel = None
         self._speedCmdRel = None
+
         self._minDepth = -1.
+        self._detectionSizePx = {"x" : 0, "y" : 0}
 
     def processDepthImage(self, depthImage):
         self._minDepth = self._min_depth_calc.processDepthImage(depthImage)
+
+    #todo : handle multiple detections
+    def updateRTDetection(self, startX, startY, endX, endY):
+        self._detectionSizePx["x"] = min(endX - startX, 0)
+        self._detectionSizePx["y"] = min(endY - startY, 0)
 
     def updateUltrasonic(self, deviceId, respInt):
         distMeters = Cfg.UltrasonicToMeters * respInt
@@ -81,6 +107,10 @@ class CollisionAvoidanceManager:
 
         if (self._speedCmdRel < 0) : 
             self._speedCmdRel = -1 * CollisionAvoidanceManager.__LimitCmd(-1 * self._speedCmdRel, minRangeAft)        
+
+        if ((self._detectionSizePx["x"] > Cfg.DetectionSizeMaxPx["x"]) and
+            (self._detectionSizePx["y"] > Cfg.DetectionSizeMaxPx["y"])) : 
+            self._speedCmdRel = 0
 
 if __name__ == '__main__':
     coav = CollisionAvoidanceManager()
