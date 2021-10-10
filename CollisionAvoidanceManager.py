@@ -47,9 +47,9 @@ class CollisionAvoidanceManager:
 
         Cfg.RTODCfg["callback"] = self.updateRTDetection    #NB modifying a global/static dictionary, but who cares
         self._rtod = RTOD(Cfg.RTODCfg)
-        self._rosSubColor = ImageSubscriberWrapper('/color/image_raw', self._rtod.ProcessNumpyImage)
-
-        self._rosSubDepth = ImageSubscriberWrapper('/depth/image_rect_raw', self.processDepthImage)
+        self._rosSub = ImageSubscriberWrapper()
+        self._rosSub.subscribe('/color/image_raw', self._rtod.ProcessNumpyImage)
+        self._rosSub.subscribe('/depth/image_rect_raw', self.processDepthImage)
 
         self._steeringCmdRel = None
         self._speedCmdRel = None
