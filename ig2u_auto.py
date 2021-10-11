@@ -2,7 +2,6 @@ import curses
 import os
 import socketio
 import datetime
-import time
 import threading 
 import time
 import sys
@@ -14,9 +13,21 @@ from subprocess import Popen, PIPE, STDOUT
 import select
 import signal
 import psutil
+import gi 
 import board
 
 from CollisionAvoidanceManager import CollisionAvoidanceManager 
+
+
+gi.require_version('GLib', '2.0')
+gi.require_version('GObject', '2.0')
+gi.require_version('Gst', '1.0')
+
+from gi.repository import Gst, GObject, GLib
+
+pipeline = None
+bus = None
+messageGs = None
 
 dit=None
 ads = None
@@ -33,101 +44,45 @@ g_speed_command = 0
 g_mot_command = "stop"
 g_coav = None
 
-#убиваем процесс по имени (вызов из stop_video)
-def kill_name():
-    for proc in psutil.process_iter():
-      if proc.name() == 'gst-launch-1.0':
-         proc.kill()
-    
-#старт стереовидео (вызов из test_broadcast_message)
-def start_videoS():
+def start_stream(video):
+    global pro
+    global pipeline
     print("before start videotranslation")
-    global pro
-    if pro != None:
-        stop_video()
-#        os.killpg(os.getpgid(pro.pid), signal.SIGTERM)  # Send the signal to all the process groups
-        time.sleep(1)
-    print('стерео: ', pro)
-    pro = subprocess.Popen(['/home/pi/to_janusIg2u.sh'], shell=True, preexec_fn=os.setsid) 
-    print("after start videotranslation")
-
-#старт моновидео (вызов из test_broadcast_message)
-def start_video():
-    global pro
-    print("before start videotranslation")
-    if pro != None:
-       stop_video()
-#       os.killpg(os.getpgid(pro.pid), signal.SIGTERM)  # Send the signal to all the process groups
-       time.sleep(1)
-    print('моно: ', pro)
-    pro = subprocess.Popen(['/home/pi/to_janusIg2u_crop.sh'], shell=True, preexec_fn=os.setsid) 
-#    return str(pro.communicate()[0])
-    print("after start videotranslation")
-
-#старт стереовидео со звуком (вызов из test_broadcast_message)
-def start_videoSZ():
-    print("before start videotranslation")
-    global pro
-    if pro != None:
-        stop_video()
-#        os.killpg(os.getpgid(pro.pid), signal.SIGTERM)  # Send the signal to all the process groups
-        time.sleep(1)
-    print('стерео: ', pro)
-    pro = subprocess.Popen(['/home/pi/to_janusIg2u_A.sh'], shell=True, preexec_fn=os.setsid) 
-    print("after start videotranslation")
-
-#старт моновидео со звуком(вызов из test_broadcast_message)
-def start_videoZ():
-    global pro
-    print("before start videotranslation")
-    if pro != None:
-       stop_video()
-#       os.killpg(os.getpgid(pro.pid), signal.SIGTERM)  # Send the signal to all the process groups
-       time.sleep(1)
-    print('моно: ', pro)
-    pro = subprocess.Popen(['/home/pi/to_janusIg2u_crop_A.sh'], shell=True, preexec_fn=os.setsid) 
-#    return str(pro.communicate()[0])
-    print("after start videotranslation")
-    
-
-#старт камеры заднего вида (вызов из test_broadcast_message)
-def start_videoZad():
-    global pro
-    print("before start videotranslation")
-    if pro != None:
-       stop_video()
-#       os.killpg(os.getpgid(pro.pid), signal.SIGTERM)  # Send the signal to all the process groups
-       time.sleep(1)
-    print('моно: ', pro)
-    pro = subprocess.Popen(['/home/pi/to_janusIg2u_zad.sh'], shell=True, preexec_fn=os.setsid) 
-#    return str(pro.communicate()[0])
-    print("after start videotranslation") 
-
-#старт трансляции звука(вызов из test_broadcast_message)   
-def start_noise():
-    global pro
-    print("before start videotranslation")
-    if pro != None:
-       stop_video()
-#       os.killpg(os.getpgid(pro.pid), signal.SIGTERM)  # Send the signal to all the process groups
-       time.sleep(1)
-    print('моно: ', pro)
-    pro = subprocess.Popen(['/home/pi/audIg2u.sh'], shell=True, preexec_fn=os.setsid) 
-#    return str(pro.communicate()[0])
-    print("after start videotranslation")
-
-#останавливаем стрим видео с робота на сервер (вызов из test_broadcast_message)
-def stop_video():
-    global pro
-    print("before stop videotranslation")
-    try:
-      print(pro.pid)
-      kill_name()
-      time.sleep(3)  
-      pro=None
-      print('kill', pro)
-    except Exception as e:
+    if pro != None: 
+        pipeline.set_state(Gst.State.NULL) 
+    if(video==2):
+        pipeline = Gst.parse_launch("alsasrc device=hw:1,0 ! audioconvert ! audioresample ! webrtcechoprobe ! opusenc bitrate=100000 ! rtpopuspay ! udpsink host=212.109.192.99 port=8002 v4l2src device=/dev/video2 ! image/jpeg,width=1280, height=720,framerate=30/1 ! jpegdec ! omxh264enc control-rate=1  ! h264parse config-interval=3 ! rtph264pay ! udpsink host=ig2u.online port=8004 sync=false ")
         pass
+    elif(video==1):
+        pipeline = Gst.parse_launch("alsasrc device=hw:1,0 ! audioconvert ! audioresample ! webrtcechoprobe ! opusenc bitrate=100000 ! rtpopuspay ! udpsink host=212.109.192.99 port=8002 v4l2src device=/dev/video3 ! image/jpeg,width=1280, height=720,framerate=30/1 ! jpegdec ! omxh264enc control-rate=1  ! h264parse config-interval=3 ! rtph264pay ! udpsink host=ig2u.online port=8004 sync=false ")
+        pass       
+    elif(video==0):
+        pipeline.set_state(Gst.State.NULL) 
+        pass
+    elif(video==3):
+        pipeline = Gst.parse_launch("alsasrc device=hw:1,0 ! audioconvert ! audioresample ! webrtcechoprobe ! opusenc bitrate=100000 ! rtpopuspay ! udpsink host=212.109.192.99 port=8002 v4l2src device=/dev/video1 ! image/jpeg,width=1280, height=720,framerate=30/1 ! jpegdec ! omxh264enc control-rate=1  ! h264parse config-interval=3 ! rtph264pay ! udpsink host=ig2u.online port=8004 sync=false")
+        pass
+    elif(video==4):
+        pipeline = Gst.parse_launch("alsasrc device=hw:1,0 ! audioconvert ! audioresample ! webrtcechoprobe ! opusenc bitrate=100000 ! rtpopuspay ! udpsink host=212.109.192.99 port=8002 v4l2src device=/dev/video0 ! image/jpeg,width=1280, height=720,framerate=30/1 ! jpegdec ! omxh264enc control-rate=1  ! h264parse config-interval=3 ! rtph264pay ! udpsink host=ig2u.online port=8004 sync=false")
+        pass
+#    elif(video==5):
+ #       pipeline = Gst.parse_launch("alsasrc device=hw:2,0 ! audioconvert ! audioresample ! webrtcdsp noise-suppression-level=3 voice-detection=true voice-detection-likelihood=3 echo-suppression-level=2 ! webrtcechoprobe ! opusenc bitrate=100000 ! rtpopuspay ! udpsink host=62.109.16.164 port=8002")
+  #      pass
+    elif(video==6):
+        pipeline = Gst.parse_launch("alsasrc device=hw:1,0 ! audioconvert ! audioresample ! webrtcechoprobe ! opusenc bitrate=100000 ! rtpopuspay ! udpsink host=212.109.192.99 port=8002 v4l2src device=/dev/video0 ! image/jpeg,width=1280, height=720,framerate=30/1 ! jpegdec ! omxh264enc control-rate=1  ! h264parse config-interval=3 ! rtph264pay ! udpsink host=ig2u.online port=8004 sync=false")
+        pass
+    # start playing
+    pipeline.set_state(Gst.State.PLAYING)
+    pro = 1
+    # wait until EOS or error
+    bus = pipeline.get_bus()
+    msg = bus.timed_pop_filtered(
+        Gst.CLOCK_TIME_NONE,
+        Gst.MessageType.ERROR | Gst.MessageType.EOS
+        )
+    # free resources
+    pipeline.set_state(Gst.State.NULL)
+    print("after start videotranslation")
 
 #перевод углов в команды, а - углы, b - сигналы, s - угол (вызов из test_broadcast_message)
 def map_range(a,b,s): 
@@ -142,6 +97,11 @@ def connect():
     global connected
 #    global start_time
     global ms
+# initialize GStreamer
+    Gst.init(sys.argv[1:])
+    global pipeline
+    pipeline = Gst.Pipeline()
+    print(pipeline)
     last_response = datetime.datetime.utcnow()
     connected = True
     print('connection established')
@@ -173,34 +133,8 @@ def test_broadcast_message(data):
           video=int(params[3])
           if video!=None:
            print('video = ', video)
-           if(video==2):
-               threading.Timer(PAUSE_START_VIDEO, start_videoS).start()
-               start_videoS()           
-               pass
-           elif(video==1):
-               threading.Timer(PAUSE_START_VIDEO, start_video).start()
-               start_video()
-               pass       
-           elif(video==0):
-               threading.Timer(PAUSE_START_VIDEO, stop_video).start()
-               stop_video()
-               pass
-           elif(video==3):
-               threading.Timer(PAUSE_START_VIDEO, start_videoZ).start()
-               start_videoZ()
-               pass
-           elif(video==4):
-               threading.Timer(PAUSE_START_VIDEO, start_videoSZ).start()
-               start_videoSZ()
-               pass
-           elif(video==5):
-               threading.Timer(PAUSE_START_VIDEO, start_noise).start()
-               start_noise()
-           elif(video==6):
-               threading.Timer(PAUSE_START_VIDEO, start_videoZad).start()
-               start_videoZad()
-               pass               
-
+           start_stream(video)
+           
     if mode == "mot":
      try:
       if inRasbery:
@@ -219,6 +153,7 @@ def disconnect():
     global connected
     global video 
     connected = False
+    pipeline.set_state(Gst.State.NULL) 
     if dit!=None:
      dit.set_servo_pulsewidth(18,0)                      #отключаем питание моторов
      #dit.set_servo_pulsewidth(27,0)
@@ -304,6 +239,7 @@ def main_console(win):
               handle_keypress(key)
         except Exception as e:
            print ("Exception '" + str(e) + "'\r\n")
+
 
 #curses.wrapper(main_console)
 main_remote()

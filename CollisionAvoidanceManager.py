@@ -1,8 +1,8 @@
 from ChassisInterface import ChassisInterface, Protocol
-from ROS_ImageSubscriber import ImageSubscriberWrapper
+#from ROS_ImageSubscriber import ImageSubscriberWrapper
 from MinDepthRealsenseROS import MinDepthRealsenseROS
 from RTOD_ROS import RTOD
-
+
 class Cfg:
     #УЗ-датчик возвращает время от передачи до приема импульса в мксек (?)
     UltrasonicToMeters = 0.5 * 343.0 * 1E-6
@@ -47,9 +47,9 @@ class CollisionAvoidanceManager:
 
         Cfg.RTODCfg["callback"] = self.updateRTDetection    #NB modifying a global/static dictionary, but who cares
         self._rtod = RTOD(Cfg.RTODCfg)
-        self._rosSub = ImageSubscriberWrapper()
-        self._rosSub.subscribe('/color/image_raw', self._rtod.ProcessNumpyImage)
-        self._rosSub.subscribe('/depth/image_rect_raw', self.processDepthImage)
+        #self._rosSub = ImageSubscriberWrapper()
+        #self._rosSub.subscribe('/color/image_raw', self._rtod.ProcessNumpyImage)
+        #self._rosSub.subscribe('/depth/image_rect_raw', self.processDepthImage)
 
         self._steeringCmdRel = None
         self._speedCmdRel = None
@@ -83,7 +83,7 @@ class CollisionAvoidanceManager:
         self._steeringCmdRel = Cfg.SteeringDic.get(motComand)
         assert (self._steeringCmdRel != None)
 
-        self.limitChassisCmd()
+        #self.limitChassisCmd()
         self._chassis.setSpeed(self._speedCmdRel)
         self._chassis.setSteering(self._steeringCmdRel)
         

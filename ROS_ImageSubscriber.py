@@ -5,7 +5,7 @@ from rclpy.node import Node # Handles the creation of nodes
 from sensor_msgs.msg import Image # Image is the message type
 from cv_bridge import CvBridge, CvBridgeError # Package to convert between ROS and OpenCV Images
 
-from functools import partial #std::bind for python
+from functools import partial #bind argument value
 
 from threading import Thread
 
