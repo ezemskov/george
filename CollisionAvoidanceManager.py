@@ -2,7 +2,8 @@ from ChassisInterface import ChassisInterface, Protocol
 #from ROS_ImageSubscriber import ImageSubscriberWrapper
 from MinDepthRealsenseROS import MinDepthRealsenseROS
 from RTOD_ROS import RTOD
-
+import logging
+
 class Cfg:
     #УЗ-датчик возвращает время от передачи до приема импульса в мксек (?)
     UltrasonicToMeters = 0.5 * 343.0 * 1E-6
@@ -68,6 +69,7 @@ class CollisionAvoidanceManager:
     def updateUltrasonic(self, deviceId, respInt):
         distMeters = Cfg.UltrasonicToMeters * respInt
         self._ultrasonicRanges[deviceId] = distMeters
+        logging.debug('Ultrasonic id {0} range {1} ({2} meters)'.format(deviceId, respInt, distMeters))
 
     def updateCmd(self, motComand, speedCommand):
         #Вычисляем speedCommandRel [-1..1] из направления motComand и модуля скорости speedCommand 
@@ -79,7 +81,11 @@ class CollisionAvoidanceManager:
             self._speedCmdRel *= -1.0
         if motComand == "stop":
             self._speedCmdRel = 0.0
-
+        if motComand == "left":
+            self._speedCmdRel = 0.0
+        if motComand == "right":
+            self._speedCmdRel = 0.0
+            
         self._steeringCmdRel = Cfg.SteeringDic.get(motComand)
         assert (self._steeringCmdRel != None)
 

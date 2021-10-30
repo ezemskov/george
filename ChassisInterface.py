@@ -19,8 +19,8 @@ class Protocol:
         Ultrasonic3 = 4
         Ultrasonic4 = 5
 
-    SpeedMax = 1000
-    SteeringMax = 1000
+    SpeedMax = 200
+    SteeringMax = 300
 
     def FormatOffset(cmdId, deviceId):
         return ((int(cmdId) << 4) & 0xF0) | (int(deviceId) & 0x0F); 
@@ -104,9 +104,9 @@ class ChassisInterface:
     def setSteering(self, steering_) : 
         self.steering = steering_
 
-    def __sendWheelCmd(self, deviceId):
+    def __sendWheelCmd(self, deviceId, steeringSign):
         offs = Protocol.FormatOffset(Protocol.CmdId.WheelCmd, deviceId)
-        cmdBytes = Protocol.FormatWheelCmd(self.speed, self.steering)
+        cmdBytes = Protocol.FormatWheelCmd(self.speed, steeringSign * self.steering)
         
         logging.debug('Send to offset {0}: [0x{1}]'.format(hex(offs), cmdBytes.hex()))
         try:
@@ -141,8 +141,8 @@ class ChassisInterface:
 
     def __run(self):
         while True:
-            self.__sendWheelCmd(Protocol.DeviceId.FrontAxis)
-            self.__sendWheelCmd(Protocol.DeviceId.RearAxis)
+            self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
+            self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
             sleep(2*ChassisInterface.InterCmdPauseSeс)   
             self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
             sleep(ChassisInterface.InterCmdPauseSeс)   
