@@ -9,6 +9,8 @@ from functools import partial #bind argument value
 
 from threading import Thread
 
+import sys
+
 class ImageSubscriber(Node):
   def __init__(self):
     # Initiate the Node class's constructor and give it a name
@@ -57,3 +59,20 @@ class ImageSubscriberWrapper:
         rclpy.spin(self.node)
         rclpy.shutdown()
 
+
+def callback(self, data):
+    # Display the message on the console
+    self.get_logger().info('Receiving video frame')
+
+def main():
+    args = sys.argv
+
+    if (len(args) < 2):
+        print("Commandline : {0} ros_topic_name".format(args[0]))
+        return
+
+    sub = ImageSubscriberWrapper()
+    sub.subscribe(args[1], callback)
+
+if __name__ == '__main__':
+    main()
