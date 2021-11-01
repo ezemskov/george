@@ -84,13 +84,13 @@ class ChassisInterface:
         self.wheelCallback = None
         self.ultrasonicCallback = None
 
+        self.thread_stop_event = threading.Event()
         self.thread = threading.Thread(target=self.__run)
         self.thread.start()
 
-    #todo : interrupt and join the thread nicely
-    #def __del__(self):
-        #todo : set event to interrupt thread
-        #self.thread.join();    
+    def __del__(self):
+        self.thread_stop_event.set()
+        self.thread.join();    
     
     def setWheelCallback(self, callback):
         self.wheelCallback = callback
@@ -140,7 +140,7 @@ class ChassisInterface:
             logging.error('I2C error : '.format(exc))
 
     def __run(self):
-        while True:
+        while (self.thread_stop_event.is_set() == False):
             self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
             self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
             sleep(2*ChassisInterface.InterCmdPauseSeс)   

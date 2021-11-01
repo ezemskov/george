@@ -1,4 +1,3 @@
-import curses
 import os
 import socketio
 import datetime
@@ -15,6 +14,7 @@ import signal
 import psutil
 import gi 
 import board
+import getch
 
 from CollisionAvoidanceManager import CollisionAvoidanceManager 
 
@@ -42,7 +42,7 @@ ms = 0
 video = None
 g_speed_command = 0
 g_mot_command = "stop"
-g_coav = None
+g_coav = CollisionAvoidanceManager()
 
 def start_stream(video):
     global pro
@@ -109,11 +109,7 @@ def connect():
 def handle_motion_command_i2c(motComand, speedCommand):
     global g_coav
 
-    if g_coav == None:
-        g_coav = CollisionAvoidanceManager()
-
     print("handle_motion_command_i2c {0} {1}\r\n".format(motComand, speedCommand))
-
     g_coav.updateCmd(motComand, speedCommand)
 
 #ОБРАБОТКА управляющих сообщений от сервера (запускается после получения сообщения от сервера)
@@ -140,7 +136,6 @@ def test_broadcast_message(data):
       if inRasbery:
        g_mot_command = params[1]
        g_speed_command = int(params[2])
-       #handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
        handle_motion_command_i2c(g_mot_command, g_speed_command)
        
      except Exception as e:
@@ -204,16 +199,16 @@ def handle_keypress(key):
     global g_mot_command
 
     CmdDic = {
-        curses.KEY_UP : "top",
-        curses.KEY_DOWN : "down",
-        curses.KEY_LEFT : "left",
-        curses.KEY_RIGHT : "right",
-        ord(' ') : "stop"
+        'w' : "top",
+        's' : "down",
+        'a' : "left",
+        'd' : "right",
+        ' ' : "stop"
     }
 
     SpeedDic = {
-        ord('+') : lambda cmdVal : min(cmdVal  + 10, 100),
-        ord('-') : lambda cmdVal : max(cmdVal  - 10, 0) 
+        '+' : lambda cmdVal : min(cmdVal  + 10, 100),
+        '-' : lambda cmdVal : max(cmdVal  - 10, 0) 
     }
 
     speedFunc = SpeedDic.get(key)
@@ -224,22 +219,26 @@ def handle_keypress(key):
     if motCmd != None:
         g_mot_command = motCmd
 
-    #handle_motion_command_gpio_pwm(g_mot_command, g_speed_command)
-    handle_motion_command_i2c(g_mot_command, g_speed_command)
+    if (speedFunc != None) or (motCmd != None):
+       handle_motion_command_i2c(g_mot_command, g_speed_command)
 
-def main_console(win):
-    win.timeout(10) #msec
-
+def main_console():
+    global g_coav
     while True:          
         try:                 
-           key = win.getch()         
-           if key == ord('q'):
-              quit()           
+           key = getch.getch()         
+           if key == 'q':
+              del g_coav
+              sys.exit()
            if key != -1:
               handle_keypress(key)
         except Exception as e:
            print ("Exception '" + str(e) + "'\r\n")
 
+def main_sleep():
+    while True:
+        time.sleep(1)
 
-#curses.wrapper(main_console)
-main_remote()
+#main_sleep()
+main_console()
+#main_remote()
