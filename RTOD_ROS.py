@@ -6,7 +6,7 @@ import argparse
 import imutils
 import time
 import cv2
-
+import logging
 
 from ROS_ImageSubscriber import ImageSubscriberWrapper
 
@@ -42,6 +42,8 @@ class RTOD:
     self.net.setInput(blob)
     detections = self.net.forward()
 
+    logging.info("RTOD : {} detections".format(detections.shape[2]))
+
     # loop over the detections
     for i in np.arange(0, detections.shape[2]):
         # extract the confidence (i.e., probability) associated with
@@ -73,7 +75,7 @@ class RTOD:
             #todo : move drawing to a subclass
             cv2.rectangle(frameResized, (startX, startY), (endX, endY), classColor, 2)
             y = startY - 15 if startY - 15 > 15 else startY + 15
-            print("#{} label '{}' rect [{} {} {} {}]".format(i, label, startY, endY, startX, endX))
+            logging.info("#{} label '{}' rect [{} {} {} {}]".format(i, label, startY, endY, startX, endX))
             cv2.putText(frameResized, label, (startX, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, classColor, 2)
 
     #cv2.imwrite('rtod_result.png', frameResized)

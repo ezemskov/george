@@ -42,7 +42,7 @@ ms = 0
 video = None
 g_speed_command = 0
 g_mot_command = "stop"
-g_coav = CollisionAvoidanceManager()
+g_coav = None
 
 def start_stream(video):
     global pro
@@ -236,8 +236,13 @@ def main_console():
            print ("Exception '" + str(e) + "'\r\n")
 
 def main_sleep():
-    while True:
-        time.sleep(1)
+    global g_coav
+    rclpy.init()
+
+    g_coav = CollisionAvoidanceManager()
+
+    rclpy.spin(coav._rosSub)
+    rclpy.shutdown()
 
 #main_sleep()
 main_console()

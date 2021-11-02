@@ -31,12 +31,11 @@ class ImageSubscriber(Node):
 
       self.get_logger().info('Subscribed on ' + ros_topic_name)
 
-
   def subscriber_callback(self, data, ros_topic_name_): 
     try:
       # Convert ROS Image message to OpenCV/numpy image
       imageNumpy = CvBridge().imgmsg_to_cv2(data)
-      self.get_logger().info('Received video frame dimensions {0}x{1}'.format(imageNumpy.shape[1], imageNumpy.shape[0]))
+      self.get_logger().info('Received video frame dimensions {0}x{1} from {2}'.format(imageNumpy.shape[1], imageNumpy.shape[0], ros_topic_name_))
       
       callback = self._callbacks.get(ros_topic_name_)
       if (callback is not None):
@@ -60,11 +59,10 @@ class ImageSubscriberWrapper:
         rclpy.shutdown()
 
 
-def callback(self, data):
-    # Display the message on the console
-    self.get_logger().info('Receiving video frame')
+def callback(data):
+    pass
 
-def main():
+def main_wrapper_doesnt_work():
     args = sys.argv
 
     if (len(args) < 2):
@@ -73,6 +71,24 @@ def main():
 
     sub = ImageSubscriberWrapper()
     sub.subscribe(args[1], callback)
+
+def main():
+    args = sys.argv
+
+    if (len(args) < 2):
+        print("Commandline : {0} [ros_topic_name] [ros_topic_name]".format(args[0]))
+
+    rclpy.init()
+
+    node = ImageSubscriber()
+    if (len(args) > 1):
+        node.subscribe(args[1], callback)
+
+    if (len(args) > 2):
+        node.subscribe(args[2], callback)
+
+    rclpy.spin(node)
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

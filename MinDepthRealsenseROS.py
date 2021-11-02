@@ -26,8 +26,8 @@ class MinDepthRealsenseROS:
             minVal, maxVal, minPos, maxPos = cv2.minMaxLoc(numpyCrop)
             minDepth = minVal * MinDepthRealsenseROS.DepthUnitMeters
 
-            logging.debug('Process frame : min depth {1} m at {2}'.format(minDepth, minPos))
+            logging.debug('Process frame : min depth {0} m at {1}'.format(minDepth, minPos))
             return minDepth
         except Exception as e:
-            logging.error(e)
+            logging.error("MinDepthRealsenseROS : " + str(e))
             return -1
