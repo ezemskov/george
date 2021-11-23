@@ -80,7 +80,9 @@ class ChassisInterface:
         #self.bus = SMBusStub()
 
         self.speed = 0.0
+        self.speedChanged = True
         self.steering = 0.0
+        self.steeringChanged = True
         self.wheelCallback = None
         self.ultrasonicCallback = None
 
@@ -99,9 +101,11 @@ class ChassisInterface:
         self.ultrasonicCallback = callback
 
     def setSpeed(self, speed_) : 
+        self.speedChanged = (self.speed != speed_)
         self.speed = speed_
 
     def setSteering(self, steering_) : 
+        self.steeringChanged = (self.steering != steering_)
         self.steering = steering_
 
     def __sendWheelCmd(self, deviceId, steeringSign):
@@ -141,9 +145,12 @@ class ChassisInterface:
 
     def __run(self):
         while (self.thread_stop_event.is_set() == False):
-            self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
-            self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
-            sleep(2*ChassisInterface.InterCmdPauseSeс)   
+            if (self.speedChanged or self.steeringChanged):
+                self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
+                sleep(ChassisInterface.InterCmdPauseSeс)   
+                self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
+                sleep(2*ChassisInterface.InterCmdPauseSeс)   
+            
             self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
             sleep(ChassisInterface.InterCmdPauseSeс)   
             self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
