@@ -87,7 +87,7 @@ class ChassisInterface:
         self.ultrasonicCallback = None
 
         self.thread_stop_event = threading.Event()
-        self.thread = threading.Thread(target=self.__run)
+        self.thread = threading.Thread(target=self.__run, daemon=True)
         self.thread.start()
 
     def __del__(self):

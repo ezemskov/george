@@ -33,7 +33,7 @@ class MinDepthPyrealsense2:
         self.callback = callback
 
     def start(self):    #todo : stop
-        thread = threading.Thread(target=self.__run)
+        thread = threading.Thread(target=self.__run, daemon=True)
         thread.start()
 
     def processSingleFrame(self):

@@ -48,7 +48,7 @@ class ImageSubscriberWrapper:
     def __init__(self):
         rclpy.init()
         self.node = ImageSubscriber()
-        self.thread = Thread(target=self._threadFunc)
+        self.thread = Thread(target=self._threadFunc, daemon=True)
         self.thread.start()
 
     def subscribe(self, ros_topic_name, callback = None):

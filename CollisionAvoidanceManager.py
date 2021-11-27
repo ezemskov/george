@@ -1,8 +1,9 @@
-from ChassisInterface import ChassisInterface, Protocol
+from ChassisInterface import ChassisInterface
 from ROS_ImageSubscriber import ImageSubscriber
 from MinDepthRealsenseROS import MinDepthRealsenseROS
 from RTOD_ROS import RTOD
 import logging
+from enum import IntEnum
 import rclpy 
 
 class Cfg:
@@ -32,13 +33,21 @@ class Cfg:
         "class"      : "person"
     }
 
+    class RangeId(IntEnum):
+        Depth = 1,
+        Ultrasonic1 = 2
+        Ultrasonic2 = 3
+        Ultrasonic3 = 4
+        Ultrasonic4 = 5
+
+
 class CollisionAvoidanceManager:
     def __init__(self):
-        self._ultrasonicRanges = {
-            Protocol.DeviceId.Ultrasonic1 : 0.,
-            Protocol.DeviceId.Ultrasonic2 : 0.,
-            Protocol.DeviceId.Ultrasonic3 : 0.,
-            Protocol.DeviceId.Ultrasonic3 : 0.
+        self._ranges = {
+            Cfg.RangeId.Ultrasonic1 : 0.,
+            Cfg.RangeId.Ultrasonic2 : 0.,
+            Cfg.RangeId.Ultrasonic3 : 0.,
+            Cfg.RangeId.Ultrasonic4 : 0.
         }
 
         self._chassis = ChassisInterface()
@@ -61,6 +70,7 @@ class CollisionAvoidanceManager:
 
     def processDepthImage(self, depthImage):
         self._minDepth = self._min_depth_calc.processDepthImage(depthImage)
+        self._ranges[Cfg.RangeId.Depth] = self._minDepth #todo : remove _minDepth
 
     #todo : handle multiple detections
     def updateRTDetection(self, startX, startY, endX, endY):
@@ -69,7 +79,7 @@ class CollisionAvoidanceManager:
 
     def updateUltrasonic(self, deviceId, respInt):
         distMeters = Cfg.UltrasonicToMeters * respInt
-        self._ultrasonicRanges[deviceId] = distMeters
+        self._ranges[deviceId] = distMeters
         logging.debug('Ultrasonic id {0} range {1} ({2} meters)'.format(deviceId, respInt, distMeters))
 
     def updateCmd(self, motComand, speedCommand):
@@ -102,10 +112,10 @@ class CollisionAvoidanceManager:
                 return 0.
     
     def limitChassisCmd(self):
-        minRangeFwd = min(self._ultrasonicRanges[Protocol.DeviceId.Ultrasonic1], 
-                          self._ultrasonicRanges[Protocol.DeviceId.Ultrasonic2]) 
-        minRangeAft = min(self._ultrasonicRanges[Protocol.DeviceId.Ultrasonic3], 
-                          self._ultrasonicRanges[Protocol.DeviceId.Ultrasonic4]) 
+        minRangeFwd = min(self._ranges[Cfg.RangeId.Ultrasonic1], 
+                          self._ranges[Cfg.RangeId.Ultrasonic2]) 
+        minRangeAft = min(self._ranges[Cfg.RangeId.Ultrasonic3], 
+                          self._ranges[Cfg.RangeId.Ultrasonic4]) 
 
         self._speedCmdRel = CollisionAvoidanceManager.__LimitCmd(self._speedCmdRel, self._minDepth)
 
@@ -118,6 +128,12 @@ class CollisionAvoidanceManager:
         if ((self._detectionSizePx["x"] > Cfg.DetectionSizeMaxPx["x"]) and
             (self._detectionSizePx["y"] > Cfg.DetectionSizeMaxPx["y"])) : 
             self._speedCmdRel = 0
+
+    def GetRange(self, id):
+        return self._ranges[id]
+
+    def GetDetectionSize(self):
+        return self._detectionSizePx
 
 if __name__ == '__main__':
     rclpy.init()

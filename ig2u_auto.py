@@ -4,7 +4,7 @@ import time
 from threading import Thread
 import rclpy
 
-from CollisionAvoidanceManager import CollisionAvoidanceManager 
+from CollisionAvoidanceManager import CollisionAvoidanceManager, Cfg as CoavCfg
 from ChassisInterface import ChassisInterface, Protocol
 
 pipeline = None
@@ -36,6 +36,7 @@ def connect():
     global connected
     global ms
     global pipeline
+    global g_coav
     ping_pongStart()    
     connected = True
     print('connection established')
@@ -43,13 +44,13 @@ def connect():
         while connected:   #пингуем раз в секунду
             sio.sleep(1)
             ping_pongR(ms)
-            data = g_coav._ultrasonicRanges[Protocol.DeviceId.Ultrasonic1], g_coav._ultrasonicRanges[Protocol.DeviceId.Ultrasonic2], g_coav._ultrasonicRanges[Protocol.DeviceId.Ultrasonic3], g_coav._ultrasonicRanges[Protocol.DeviceId.Ultrasonic4]
+            data = g_coav.GetRange(CoavCfg.RangeId.Ultrasonic1), g_coav.GetRange(CoavCfg.RangeId.Ultrasonic2), g_coav.GetRange(CoavCfg.RangeId.Ultrasonic3), g_coav.GetRange(CoavCfg.RangeId.Ultrasonic4)
             ping_pongU(data)
 #            print('UltS = ', data)
-            print('Ult1 = ', g_coav._ultrasonicRanges[Protocol.DeviceId.Ultrasonic1])
-            print('Ult2 = ', g_coav._ultrasonicRanges[Protocol.DeviceId.Ultrasonic2])
-            print('Ult3 = ', g_coav._ultrasonicRanges[Protocol.DeviceId.Ultrasonic3])
-            print('Ult4 = ', g_coav._ultrasonicRanges[Protocol.DeviceId.Ultrasonic4])
+            print('Ult1 = ', g_coav.GetRange(CoavCfg.RangeId.Ultrasonic1))
+            print('Ult2 = ', g_coav.GetRange(CoavCfg.RangeId.Ultrasonic2))
+            print('Ult3 = ', g_coav.GetRange(CoavCfg.RangeId.Ultrasonic3))
+            print('Ult4 = ', g_coav.GetRange(CoavCfg.RangeId.Ultrasonic4))
             print('###########################@@@@@@@@@@@@@')
     except KeyboardInterrupt:
         print('interrupted!')
@@ -90,9 +91,7 @@ def test_broadcast_message(data):
 def disconnect():
     print('disconnected from server')
     global connected
-    global video 
     connected = False
-    pipeline.set_state(Gst.State.NULL) 
     handle_motion_command_i2c("stop", 0)
     
 
@@ -130,17 +129,26 @@ def ping_pongU(data):
 
 def main_remote():
     global g_coav
-    rclpy.init()
-    g_coav = CollisionAvoidanceManager()
 
-    thread = Thread(target=rclpy.spin, args=(g_coav._rosSub, ), daemon=True)
-    thread.start()
+    try:
+        rclpy.init()
+        g_coav = CollisionAvoidanceManager()
 
-    while True:
-        try:
-            sio.connect('https://evgenium.fvds.ru:5000') #адрес для коннекта
-            sio.wait()
-        except Exception as e:
-            print(e)
+        thread = Thread(target=rclpy.spin, args=(g_coav._rosSub,), daemon=True)
+        thread.start()
+
+        while True:
+            try:
+                sio.connect('https://evgenium.fvds.ru:5000') #адрес для коннекта
+                sio.wait()
+            except ConnectionRefusedError as ex: 
+                print(ex)
+
+    except KeyboardInterrupt as ex:
+        print("Shutdown on Ctrl+C")
+    except Exception as ex:
+        print("Exception : {}".format(ex))
+    finally:
+        rclpy.shutdown()        
 
 main_remote()
