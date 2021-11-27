@@ -5,10 +5,13 @@ from RTOD_ROS import RTOD
 import logging
 from enum import IntEnum
 import rclpy 
+import cv2
 
 class Cfg:
     #УЗ-датчик возвращает время от передачи до приема импульса в мксек (?)
     UltrasonicToMeters = 0.5 * 343.0 * 1E-6
+
+    RangeThrMeters = 65.
 
     RangeSlowMeters = 1.0
     RangeStopMeters = 0.4
@@ -54,12 +57,14 @@ class CollisionAvoidanceManager:
         self._chassis.setUltrasonicCallback(self.updateUltrasonic)
 
         self._min_depth_calc = MinDepthRealsenseROS()
-        self._min_depth_calc.setRoi(100, 748, 0, 380)
+        #self._min_depth_calc.setRoi(100, 748, 0, 380)
+        self._min_depth_calc.setDepthThr(Cfg.RangeThrMeters)
 
         Cfg.RTODCfg["callback"] = self.updateRTDetection    #NB modifying a global/static dictionary, but who cares
         self._rtod = RTOD(Cfg.RTODCfg)
         self._rosSub = ImageSubscriber()
-        self._rosSub.subscribe('/color/image_raw', self._rtod.ProcessNumpyImage)
+        #self._rosSub.subscribe('/color/image_raw', self._rtod.ProcessNumpyImage)
+        self._rosSub.subscribe('/color/image_raw', CollisionAvoidanceManager.processColorImage)
         self._rosSub.subscribe('/depth/image_rect_raw', self.processDepthImage)
 
         self._steeringCmdRel = None
@@ -68,9 +73,13 @@ class CollisionAvoidanceManager:
         self._minDepth = -1.
         self._detectionSizePx = {"x" : 0, "y" : 0}
 
-    def processDepthImage(self, depthImage):
-        self._minDepth = self._min_depth_calc.processDepthImage(depthImage)
+    def processDepthImage(self, image):
+        cv2.imwrite(r"latest_depth.tiff", image)
+        self._minDepth = self._min_depth_calc.processDepthImage(image)
         self._ranges[Cfg.RangeId.Depth] = self._minDepth #todo : remove _minDepth
+
+    def processColorImage(image):
+        cv2.imwrite(r"latest_color.tiff", image)
 
     #todo : handle multiple detections
     def updateRTDetection(self, startX, startY, endX, endY):
