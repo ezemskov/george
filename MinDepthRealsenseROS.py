@@ -8,11 +8,13 @@ class Cfg:
     LogFilename="realsense.log"
     DepthUnitMeters = 0.001
 
+    RangeThrMeters = 32.768
+
 class MinDepthRealsenseROS:
     def __init__(self):
         loggerHandlers = [
             logging.StreamHandler(stream=stdout),
-            logging.FileHandler(filename=Cfg.LogFilename)
+            #logging.FileHandler(filename=Cfg.LogFilename)
         ] 
         logging.basicConfig(handlers=loggerHandlers, level=logging.DEBUG)
 
@@ -28,20 +30,15 @@ class MinDepthRealsenseROS:
         self.top = top
         self.bottom = bottom
 
-    def setDepthThr(self, val):
-        self.depthThr = val
-
     def processDepthImage(self, numpyImage):
         try:
-
             numpyCrop = numpyImage
             useRoi = (self.left >= 0) and (self.right >= 0) and (self.top >= 0) and (self.bottom >= 0) 
             if useRoi : 
                 numpyCrop = numpyImage[self.top:self.bottom, self.left:self.right]
-            depthThrPixVal = int(self.depthThr / Cfg.DepthUnitMeters)
+            depthThrPixVal = int(Cfg.RangeThrMeters / Cfg.DepthUnitMeters)
 
             numpyThresholded = numpy.where(numpyCrop == 0, depthThrPixVal, numpyCrop)
-            cv2.imwrite(r"latest_thr.tiff", numpyThresholded)
 
             minVal, maxVal, minPos, maxPos = cv2.minMaxLoc(numpyThresholded)
             minDepth = minVal * Cfg.DepthUnitMeters
