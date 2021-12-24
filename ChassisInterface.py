@@ -4,6 +4,7 @@ from time import sleep
 from enum import IntEnum
 import logging            
 from sys import stdout
+#from CollisionAvoidanceManager import CollisionAvoidanceManager
 
 class Protocol:
     class CmdId(IntEnum):
@@ -20,7 +21,7 @@ class Protocol:
         Ultrasonic4 = 5
 
     SpeedMax = 200
-    SteeringMax = 300
+    SteeringMax = 500
 
     def FormatOffset(cmdId, deviceId):
         return ((int(cmdId) << 4) & 0xF0) | (int(deviceId) & 0x0F); 
@@ -63,7 +64,9 @@ class SMBusStub:
 class ChassisInterface:
     LogFilename="chassis_interface.log"
     LogRecordFormat="%(asctime)s %(levelname)s %(message)s"
+    InterUZPauseSeс = 0.02        #Период опроса УЗ-датчиков
     ResendIntervalSec = 1.0       #Период передачи команд контроллеру
+    InterCmdRotatePauseSeс = 0.1       #Интервал между I2C-транзакциями для поворотов
     InterCmdPauseSeс = 0.05       #Интервал между I2C-транзакциями
     I2cSlaveAddr = 80             #Адрес I2C slave (на arduino)
     DefaultBusNum = 1             #id i2c-устройства (/dev/i2c-N)
@@ -74,7 +77,7 @@ class ChassisInterface:
             logging.StreamHandler(stream=stdout),
             logging.FileHandler(filename=ChassisInterface.LogFilename)
         ] 
-        logging.basicConfig(handlers=loggerHandlers, level=logging.DEBUG, format=ChassisInterface.LogRecordFormat)
+        logging.basicConfig(handlers=loggerHandlers, level=logging.INFO, format=ChassisInterface.LogRecordFormat)
 
         self.bus = SMBus(busNum)
         #self.bus = SMBusStub()
@@ -89,6 +92,7 @@ class ChassisInterface:
         self.thread_stop_event = threading.Event()
         self.thread = threading.Thread(target=self.__run, daemon=True)
         self.thread.start()
+        #respIntTmp = 0.25
 
     def __del__(self):
         self.thread_stop_event.set()
@@ -112,11 +116,22 @@ class ChassisInterface:
         offs = Protocol.FormatOffset(Protocol.CmdId.WheelCmd, deviceId)
         cmdBytes = Protocol.FormatWheelCmd(self.speed, steeringSign * self.steering)
         
-        logging.debug('Send to offset {0}: [0x{1}]'.format(hex(offs), cmdBytes.hex()))
+        logging.info('Send to offset {0}: [0x{1}]'.format(hex(offs), cmdBytes.hex()))
         try:
             self.bus.write_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, cmdBytes)
         except OSError as exc:
             logging.error('I2C error : '.format(exc))
+
+    def __sendWheelCmdStop(self, deviceId, steeringSign):
+        offs = Protocol.FormatOffset(Protocol.CmdId.WheelCmd, deviceId)
+        cmdBytes = Protocol.FormatWheelCmd(0, 0)
+        
+        logging.info('Send to offset {0}: [0x{1}]'.format(hex(offs), cmdBytes.hex()))
+        try:
+            self.bus.write_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, cmdBytes)
+        except OSError as exc:
+            logging.error('I2C error : '.format(exc))
+
 
     def __receiveWheelResponse(self, deviceId):
         offs = Protocol.FormatOffset(Protocol.CmdId.WheelResp, deviceId)
@@ -133,34 +148,62 @@ class ChassisInterface:
 
     def __receiveUltrasonicResponse(self, deviceId):
         offs = Protocol.FormatOffset(Protocol.CmdId.UltrasonicQuery, deviceId)
+        global respIntTmp
         try:
             respList = self.bus.read_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, 2)
             respBytes = bytes(respList)
             logging.debug('Received from offset {0}: [0x{1}]'.format(hex(offs), respBytes.hex()))
-            respInt = Protocol.ParseUltrasonicResp(respBytes)
+            respInt = Protocol.ParseUltrasonicResp(respBytes)            
             if (self.ultrasonicCallback != None and respInt != None) : 
-                self.ultrasonicCallback(deviceId, respInt)
+                if (respInt > 0):
+                    # respIntTmp = respInt
+                    print('respIntTmp = ', respInt)
+                    self.ultrasonicCallback(deviceId, respInt)                    
+                # if (respInt == 0):
+                    # respInt = respIntTmp
+                    # print('respIntTmp = ', respIntTmp)
+                    # self.ultrasonicCallback(deviceId, respInt)                                    
         except OSError as exc:
             logging.error('I2C error : '.format(exc))
 
     def __run(self):
         while (self.thread_stop_event.is_set() == False):
-            if (self.speedChanged or self.steeringChanged):
-                self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
-                sleep(ChassisInterface.InterCmdPauseSeс)   
-                self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
-                sleep(2*ChassisInterface.InterCmdPauseSeс)   
+            if True:
+             if (self.speedChanged==True or self.steeringChanged==True):
+             ### повороты с заданной длительностью
+                if (self.steering != 0.0):
+                    print('steeringUn = ', self.steering)
+                    self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
+                    sleep(ChassisInterface.InterCmdPauseSeс)   
+                    self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
+                    sleep(2*ChassisInterface.InterCmdRotatePauseSeс)
+                    
+                    self.__sendWheelCmdStop(Protocol.DeviceId.RearAxis,  -1)                    
+                    sleep(ChassisInterface.InterCmdPauseSeс)   
+                    self.__sendWheelCmdStop(Protocol.DeviceId.RearAxis,  -1)  
+                    self.steering = 0.0                  
+                    self.steeringChanged=False
+                    self.speedChanged=False
+                else:    
+                    self.speedChanged=False
+                    self.steeringChanged=False
+                    
+            ### 
+                    self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
+                    sleep(ChassisInterface.InterCmdPauseSeс)   
+                    self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
+                    sleep(2*ChassisInterface.InterCmdPauseSeс)   
             
-            self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
-            sleep(ChassisInterface.InterCmdPauseSeс)   
-            self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
-            sleep(ChassisInterface.InterCmdPauseSeс)   
+#                self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
+#                sleep(ChassisInterface.InterCmdPauseSeс)   
+#                self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
+#                sleep(ChassisInterface.InterCmdPauseSeс)   
 
-            for devId in range(Protocol.DeviceId.Ultrasonic1, Protocol.DeviceId.Ultrasonic4+1):
-                self.__receiveUltrasonicResponse(devId)
-                sleep(ChassisInterface.InterCmdPauseSeс)   
-
-            sleep(ChassisInterface.ResendIntervalSec)
+             for devId in range(Protocol.DeviceId.Ultrasonic1, Protocol.DeviceId.Ultrasonic4+1):
+                    self.__receiveUltrasonicResponse(devId)
+                    sleep(ChassisInterface.InterCmdPauseSeс)   
+          
+#            sleep(ChassisInterface.ResendIntervalSec)
 
 def logWheelResp(deviceId, respTuple):
     logging.debug('Received wheel response from id {0} : L {1} R {2}'.format(deviceId, respTuple[0], respTuple[1]))

@@ -30,8 +30,6 @@ class RTOD:
     self.net = cv2.dnn.readNetFromCaffe(self.args["prototxt"], self.args["model"])
 
   def ProcessNumpyImage(self, frame):
-    cv2.imwrite(r"latest_color.tiff", frame)
-
     frameResized = imutils.resize(frame, width=400)
 
     # grab the frame dimensions and convert it to a blob
