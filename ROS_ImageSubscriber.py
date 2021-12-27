@@ -3,7 +3,6 @@ import rclpy # Python library for ROS 2
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.node import Node # Handles the creation of nodes
 from sensor_msgs.msg import Image # Image is the message type
-import cv2
 from cv_bridge import CvBridge, CvBridgeError # Package to convert between ROS and OpenCV Images
 
 from functools import partial #bind argument value
