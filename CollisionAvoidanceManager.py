@@ -66,32 +66,37 @@ class CollisionAvoidanceManager:
         #self._rosSub.subscribe('/color/image_raw', self._rtod.ProcessNumpyImage)
         self._rosSub.subscribe('/depth/image_rect_raw', self.processDepthImage)
         
+
         self._steeringCmdRel = 0.0
         self._speedCmdRel = 0.0
-        self._speedCmdLtd = 0.0
 
         self._detectionSizePx = {"x" : 0, "y" : 0}
-
-    def limitAndSetCmd(self):
-        self._chassis.setSpeed(self.limitSpeedCmd())
-        self._chassis.setSteering(self._steeringCmdRel)
 
     def processDepthImage(self, image):
 #        cv2.imwrite(r"latest_depth.tiff", image)
         self._ranges[Cfg.RangeId.Depth] = self._min_depth_calc.processDepthImage(image)
-        self.limitAndSetCmd()
+        self.limitChassisCmd()
+        self._chassis.setSpeed(self._speedCmdRel)
+#        self._chassis.setSteering(self._steeringCmdRel)
 
     #todo : handle multiple detections
     def updateRTDetection(self, startX, startY, endX, endY):
         self._detectionSizePx["x"] = min(endX - startX, 0)
         self._detectionSizePx["y"] = min(endY - startY, 0)
-        #self.limitAndSetCmd()
+
+        # self.limitChassisCmd()
+        # self._chassis.setSpeed(self._speedCmdRel)
+        # self._chassis.setSteering(self._steeringCmdRel)
 
     def updateUltrasonic(self, deviceId, respInt):
         distMeters = Cfg.UltrasonicToMeters * respInt
         self._ranges[deviceId] = distMeters
         logging.debug('Ultrasonic id {0} range {1} ({2} meters)'.format(deviceId, respInt, distMeters))
-        #self.limitAndSetCmd()
+
+        # self.limitChassisCmd()
+        # self._chassis.setSpeed(self._speedCmdRel)
+        # self._chassis.setSteering(self._steeringCmdRel)
+
 
     def updateCmd(self, motComand, speedCommand):
         #Вычисляем speedCommandRel [-1..1] из направления motComand и модуля скорости speedCommand 
@@ -111,7 +116,9 @@ class CollisionAvoidanceManager:
         self._steeringCmdRel = Cfg.SteeringDic.get(motComand)
         assert (self._steeringCmdRel != None)
 
-        self.limitAndSetCmd()
+        self.limitChassisCmd()
+        self._chassis.setSpeed(self._speedCmdRel)
+        self._chassis.setSteering(self._steeringCmdRel)
         
     def __LimitCmd(cmd, range):
         if (cmd <= 0) or (range <= 0) :
@@ -123,25 +130,23 @@ class CollisionAvoidanceManager:
         if (range > Cfg.RangeSlowMeters) :
             return cmd
     
-    def limitSpeedCmd(self):
+    def limitChassisCmd(self):
         minRangeFwd = min(self._ranges[Cfg.RangeId.Ultrasonic1], 
                           self._ranges[Cfg.RangeId.Ultrasonic2]) 
         minRangeAft = min(self._ranges[Cfg.RangeId.Ultrasonic3], 
                           self._ranges[Cfg.RangeId.Ultrasonic4])
         minDepth = self._ranges[Cfg.RangeId.Depth]
 
-        res = self._speedCmdRel
-        res = CollisionAvoidanceManager.__LimitCmd(res, minDepth)
+        self._speedCmdRel = CollisionAvoidanceManager.__LimitCmd(self._speedCmdRel, minDepth)
 
-        #res = CollisionAvoidanceManager.__LimitCmd(res, minRangeFwd)        
+        #self._speedCmdRel = CollisionAvoidanceManager.__LimitCmd(self._speedCmdRel, minRangeFwd)        
 
-        # if (self._speedCmdRel < 0.) : 
-            # res = -1 * CollisionAvoidanceManager.__LimitCmd(-1 * res, minRangeAft)        
+        # if (self._speedCmdRel < 0) : 
+            # self._speedCmdRel = -1 * CollisionAvoidanceManager.__LimitCmd(-1 * self._speedCmdRel, minRangeAft)        
 
         # if ((self._detectionSizePx["x"] > Cfg.DetectionSizeMaxPx["x"]) and
             # (self._detectionSizePx["y"] > Cfg.DetectionSizeMaxPx["y"])) : 
-            # res = 0.
-        return res
+            # self._speedCmdRel = 0
 
     def GetRange(self, id):
         return self._ranges[id]
