@@ -65,7 +65,7 @@ class ChassisInterface:
     LogFilename="chassis_interface.log"
     LogRecordFormat="%(asctime)s %(levelname)s %(message)s"
     ResendIntervalSec = 1.0       #Период передачи команд контроллеру
-    InterCmdRotatePauseSeс = 0.1       #Интервал между I2C-транзакциями для поворотов
+    InterCmdRotatePauseSeс = 0.1  #Интервал между I2C-транзакциями для поворотов
     InterCmdPauseSeс = 0.05       #Интервал между I2C-транзакциями
     I2cSlaveAddr = 80             #Адрес I2C slave (на arduino)
     DefaultBusNum = 1             #id i2c-устройства (/dev/i2c-N)
@@ -110,28 +110,27 @@ class ChassisInterface:
         self.steeringChanged = (self.steering != steering_)
         self.steering = steering_
 
-    def __sendWheelCmd(self, deviceId, steeringSign):
-        offs = Protocol.FormatOffset(Protocol.CmdId.WheelCmd, deviceId)
-        cmdBytes = Protocol.FormatWheelCmd(self.speed, steeringSign * self.steering)
-        
+    def __sendFormattedWheelCmd(self, offs, cmdBytes):        
         logging.info('Send to offset {0}: [0x{1}]'.format(hex(offs), cmdBytes.hex()))
         try:
             self.bus.write_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, cmdBytes)
         except OSError as exc:
             logging.error('I2C error : '.format(exc))
 
-    def __sendWheelCmdStop(self, deviceId, steeringSign):
+    def __sendWheelCmd(self, deviceId):
+        if (deviceId == Protocol.DeviceId.FrontAxis) : 
+            steering = self.steering
+        else:
+            steering = -1 * self.steering
+
+        offs = Protocol.FormatOffset(Protocol.CmdId.WheelCmd, deviceId)
+        cmdBytes = Protocol.FormatWheelCmd(self.speed, steering)
+        self.__sendFormattedWheelCmd(offs, cmdBytes)
+
+    def __sendWheelCmdStop(self, deviceId):
         offs = Protocol.FormatOffset(Protocol.CmdId.WheelCmd, deviceId)
         cmdBytes = Protocol.FormatWheelCmd(0, 0)
-        
-        logging.info('Send to offset {0}: [0x{1}]'.format(hex(offs), cmdBytes.hex()))
-        try:
-            self.bus.write_i2c_block_data(ChassisInterface.I2cSlaveAddr, offs, cmdBytes)
-        except OSError as exc:
-            logging.error('I2C error : '.format(exc))
-
-
-
+        self.__sendFormattedWheelCmd(offs, cmdBytes)
 
     def __receiveWheelResponse(self, deviceId):
         offs = Protocol.FormatOffset(Protocol.CmdId.WheelResp, deviceId)
@@ -154,6 +153,8 @@ class ChassisInterface:
             logging.debug('Received from offset {0}: [0x{1}]'.format(hex(offs), respBytes.hex()))
             respInt = Protocol.ParseUltrasonicResp(respBytes)
             if (self.ultrasonicCallback != None and respInt != None) : 
+                if (respInt > 0):
+                    logging.debug('respInt ', respInt)
                 self.ultrasonicCallback(deviceId, respInt)
         except OSError as exc:
             logging.error('I2C error : '.format(exc))
@@ -165,24 +166,30 @@ class ChassisInterface:
              ### повороты с заданной длительностью
                 if (self.steering != 0.0):
                     print('steeringUn = ', self.steering)
-                    self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
+             ### повороты с заданной длительностью
+                if (self.steering != 0.0):
+                    #logging.debug('steering ', self.steering)
+                    self.__sendWheelCmd(Protocol.DeviceId.FrontAxis)
                     sleep(ChassisInterface.InterCmdPauseSeс)   
-                    self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
+                    self.__sendWheelCmd(Protocol.DeviceId.RearAxis)
                     sleep(2*ChassisInterface.InterCmdRotatePauseSeс)
                     
-                    self.__sendWheelCmdStop(Protocol.DeviceId.RearAxis,  -1)                    
-                    sleep(ChassisInterface.InterCmdPauseSeс)   
-                    self.__sendWheelCmdStop(Protocol.DeviceId.RearAxis,  -1)  
-                    self.steering = 0.0                  
-                    self.steeringChanged=False
-                    self.speedChanged=False
+                    self.__sendWheelCmdStop(Protocol.DeviceId.RearAxis)
+                    sleep(ChassisInterface.InterCmdPauseSeс)
+                    self.__sendWheelCmdStop(Protocol.DeviceId.RearAxis)
+                    self.steering = 0.0
                 else:    
-                    self.speedChanged=False
-                    self.steeringChanged=False
-                    
-            ### 
-                    self.__sendWheelCmd(Protocol.DeviceId.FrontAxis, +1)
+                    self.__sendWheelCmd(Protocol.DeviceId.FrontAxis)
                     sleep(ChassisInterface.InterCmdPauseSeс)   
+                    self.__sendWheelCmd(Protocol.DeviceId.RearAxis)
+                    sleep(2*ChassisInterface.InterCmdRotatePauseSeс)
+                    
+                self.speedChanged=False
+                self.steeringChanged=False
+#                self.__receiveWheelResponse(Protocol.DeviceId.FrontAxis)
+#                sleep(ChassisInterface.InterCmdPauseSeс)   
+#                self.__receiveWheelResponse(Protocol.DeviceId.RearAxis)
+#                sleep(ChassisInterface.InterCmdPauseSeс)   
                     self.__sendWheelCmd(Protocol.DeviceId.RearAxis,  -1)
                     sleep(2*ChassisInterface.InterCmdPauseSeс)   
             
@@ -194,6 +201,8 @@ class ChassisInterface:
                 # for devId in range(Protocol.DeviceId.Ultrasonic1, Protocol.DeviceId.Ultrasonic4+1):
                     # self.__receiveUltrasonicResponse(devId)
                     # sleep(ChassisInterface.InterCmdPauseSeс)   
+          
+#            sleep(ChassisInterface.ResendIntervalSec)
           
 #            sleep(ChassisInterface.ResendIntervalSec)
 
